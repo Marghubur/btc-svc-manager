@@ -10,7 +10,6 @@ import in.bottomhalf.ps.database.utils.DbProcedureManager;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.security.SecureRandom;
 import java.sql.Types;
 import java.util.Arrays;
 import java.util.List;
@@ -23,8 +22,6 @@ public class MeetingService implements IMeetingService {
     DbProcedureManager dbProcedureManager;
     @Autowired
     DbManager dbManager;
-    private static final String CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    private static final SecureRandom random = new SecureRandom();
     public List<MeetingDetail> generateMeetingService(MeetingDetail meetingDetail) throws Exception {
         if (meetingDetail.getTitle() == null || meetingDetail.getTitle().isEmpty())
             throw new Exception("Invalid meeting title");
@@ -46,8 +43,10 @@ public class MeetingService implements IMeetingService {
             throw new Exception("User not found");
 
         var fullName = user.getFirstName() + (user.getLastName() != null && !user.getLastName().isEmpty() ? " " + user.getLastName() : "");
-        meetingDetail.setMeetingId(ManageMeetingService.generateToken(currentSession.getUserId(), fullName));
-        meetingDetail.setMeetingPassword(generatePassword(6));
+        var nextId = dbManager.nextLongPrimaryKey(MeetingDetail.class);
+        meetingDetail.setMeetingDetailId(nextId);
+        meetingDetail.setMeetingId(UtilService.encodeUsingSecretOnly(nextId));
+        meetingDetail.setMeetingPassword(UtilService.generatePassword(6));
         meetingDetail.setOrganizedBy(currentSession.getUserId());
 
         dbManager.save(meetingDetail);
@@ -75,13 +74,11 @@ public class MeetingService implements IMeetingService {
     }
 
     public  MeetingDetail validateMeetingService(MeetingDetail meetingDetail) throws Exception {
-        if (meetingDetail.getMeetingDetailId() <= 0)
-            throw new Exception("Invalid meeting detail id");
-
         if (meetingDetail.getMeetingId() == null || meetingDetail.getMeetingId().isEmpty())
             throw new Exception("Invalid meeting id passed");
 
-        var existingMeetingDetail = dbManager.getById(meetingDetail.getMeetingDetailId(), MeetingDetail.class);
+        var meetingDetailId = UtilService.decodeUsingSecretOnly(meetingDetail.getMeetingId());
+        var existingMeetingDetail = dbManager.getById(meetingDetailId, MeetingDetail.class);
         if (existingMeetingDetail == null)
             throw new Exception("Meeting detail not found");
 
@@ -91,22 +88,14 @@ public class MeetingService implements IMeetingService {
         return existingMeetingDetail;
     }
 
-    private String generatePassword(int length) {
-        StringBuilder sb = new StringBuilder(length);
-        for (int i = 0; i < length; i++) {
-            sb.append(CHARACTERS.charAt(random.nextInt(CHARACTERS.length())));
-        }
-        return sb.toString();
-    }
-
     public MeetingDetail validateMeetingIdPassCodeService(MeetingDetail meetingDetail) throws Exception {
         if (meetingDetail.getMeetingPassword() == null || meetingDetail.getMeetingPassword().isEmpty())
             throw new Exception("Invalid meeting passcode");
 
         if (meetingDetail.getMeetingId() == null || meetingDetail.getMeetingId().isEmpty())
             throw new Exception("Invalid meeting id passed");
-
-        var existingMeetingDetail = dbManager.getById(meetingDetail.getMeetingDetailId(), MeetingDetail.class);
+        var meetingDetailId = UtilService.decodeUsingSecretOnly(meetingDetail.getMeetingId());
+        var existingMeetingDetail = dbManager.getById(meetingDetailId , MeetingDetail.class);
         if (existingMeetingDetail == null)
             throw new Exception("Meeting detail not found");
 
