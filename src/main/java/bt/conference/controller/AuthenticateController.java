@@ -13,13 +13,23 @@ public class AuthenticateController {
     @Autowired
     IAuthenticateService _authService;
 
-    @PostMapping("authenticateUser")
+    @PostMapping("v1/authenticateUser")
     public ApiAuthResponse authenticateUser(@RequestBody LoginDetail loginDetail) throws Exception {
         return _authService.authenticateUserService(loginDetail);
     }
 
-    @PostMapping("regenerateToken")
+    @PostMapping("v2/authenticateMobileUser")
+    public ApiAuthResponse authenticateMobileUser(@RequestBody LoginDetail loginDetail) throws Exception {
+        return _authService.authenticateMobileUserService(loginDetail);
+    }
+
+    @PostMapping("v1/regenerateToken")
     public ApiAuthResponse regenerateToken(HttpServletRequest request) throws Exception {
         return _authService.regenerateTokenService(request);
+    }
+
+    @PostMapping("v2/generateAccessToken")
+    public ApiAuthResponse generateAccessToken(HttpServletRequest request) throws Exception {
+        return _authService.generateAccessTokenService(request);
     }
 }

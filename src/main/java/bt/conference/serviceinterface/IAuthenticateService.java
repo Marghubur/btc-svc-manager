@@ -6,5 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 
 public interface IAuthenticateService {
     ApiAuthResponse authenticateUserService(LoginDetail loginDetail) throws Exception;
+    ApiAuthResponse authenticateMobileUserService(LoginDetail loginDetail) throws Exception;
     ApiAuthResponse regenerateTokenService(HttpServletRequest request) throws Exception;
+    ApiAuthResponse generateAccessTokenService(HttpServletRequest request) throws Exception;
 }

@@ -23,6 +23,8 @@ public class LoginRefreshToken {
     public String refresh_token;
     @Column(name = "email_id")
     public String email_id;
+    @Column(name = "device")
+    public String device;
     @Column(name = "last_generated_on")
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     public Date last_generated_on;

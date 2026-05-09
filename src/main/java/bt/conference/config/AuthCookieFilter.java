@@ -26,7 +26,7 @@ public class AuthCookieFilter extends OncePerRequestFilter {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final String RefreshTokenFieldName = "refreshToken";
-    private static final String AUTH_PATH_PREFIX = "/api/auth/";
+    private static final String AUTH_PATH_PREFIX = "/api/auth/v1/";
 
     @Value("${spring.profiles.active:dev}")
     private String activeProfile;
