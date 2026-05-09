@@ -18,7 +18,7 @@ spring:
 
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://145.223.22.73:30002/
+    url: jdbc:mysql://145.223.22.73:32033/
     username: root
     password: live@Bottomhalf_001
     database: btc_meets
@@ -30,14 +30,17 @@ livekit:
   api-key: APIJByNUPVKqDS8
   api-secret: mcv0eMRL9uSw3fAna0jkDjxs4ZKBvpAM5WV9k3fOvk4B
 
+security:
+  jwt:
+    key: bottomhalfx12#@-emstum-api-servic-x#20$46@3211
+    issuer: bottomhalf-services
+    expiry-time-in-seconds: 3600
+    refresh-token-expiry-time-in-seconds: 72
+
 fierhub:
-  configuration-service:
-    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJhbnkiLCJuYmYiOjE3NjA3MjIzMzcsImV4cCI6MTc5MzQ3MTM0MCwiaWF0IjoxNzYwNzIyMzM3fQ.xrUyENjoJydC0mTBgOsxawQ3m42uPNhL4dvz5a1PLC4_tid11_fid=6
-    file-name: token_1757862221025
-    use-filter: true
-  authorize:
-    routes:
-      - /api/auth/authenticateUser
-      - /api/auth
-      - /api/conference/token
-      - /api/meeting/validateMeeting
+  skipCheck: true
+  routes:
+    - /api/auth/authenticateUser
+    - /api/auth
+    - /api/conference/token
+    - /api/meeting/validateMeeting

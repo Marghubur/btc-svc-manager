@@ -1,6 +1,6 @@
 package bt.conference.config;
 
-import in.bottomhalf.common.models.ApiResponse;
+import com.fierhub.model.BaseResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -10,12 +10,12 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 public class HandleExceptions  {
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse> handleGlobalException(Exception ex) {
-        return new ResponseEntity<>(ApiResponse.BadRequest(ex.getMessage()), HttpStatus.BAD_REQUEST);
+    public ResponseEntity<BaseResponse> handleGlobalException(Exception ex) {
+        return new ResponseEntity<>(BaseResponse.RaiseError("Error", ex), HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(ApplicationException.class)
-    public ResponseEntity<ApiResponse> handleApplicationException(ApplicationException ex) {
-        return new ResponseEntity<>(ApiResponse.BadRequest(ex.getMessage()), HttpStatus.BAD_REQUEST);
+    public ResponseEntity<BaseResponse> handleApplicationException(ApplicationException ex) {
+        return new ResponseEntity<>(BaseResponse.RaiseError("Error", ex), HttpStatus.BAD_REQUEST);
     }
 }

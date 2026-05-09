@@ -4,8 +4,7 @@ import bt.conference.dto.PagedResponse;
 import bt.conference.entity.UserCache;
 import bt.conference.model.UserCacheSearchRequest;
 import bt.conference.service.UserCacheService;
-import in.bottomhalf.common.models.ApiErrorResponse;
-import in.bottomhalf.common.models.ApiResponse;
+import com.fierhub.model.BaseResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,12 +20,12 @@ public class UserCacheController {
      * GET /api/users?pageNumber=1&pageSize=10
      */
     @GetMapping("get-users")
-    public ApiResponse getAllUsers(
+    public BaseResponse getAllUsers(
             @RequestParam(defaultValue = "1") int pageNumber,
             @RequestParam(defaultValue = "10") int pageSize
     ) {
         PagedResponse<UserCache> response = userCacheService.getAllUsers(pageNumber, pageSize);
-        return ApiResponse.Ok(response);
+        return BaseResponse.Ok(response);
     }
 
     /**
@@ -34,13 +33,13 @@ public class UserCacheController {
      * GET /api/users/search?term=john&pageNumber=1&pageSize=10
      */
     @GetMapping("search")
-    public ApiResponse searchUsers(
+    public BaseResponse searchUsers(
             @RequestParam(required = false) String term,
             @RequestParam(defaultValue = "1") int pageNumber,
             @RequestParam(defaultValue = "10") int pageSize
     ) {
         PagedResponse<UserCache> response = userCacheService.searchUsers(term, pageNumber, pageSize);
-        return ApiResponse.Ok(response);
+        return BaseResponse.Ok(response);
     }
 
     /**
@@ -48,11 +47,11 @@ public class UserCacheController {
      * POST /api/users/search
      */
     @PostMapping("search")
-    public ApiResponse searchUsersAdvanced(
+    public BaseResponse searchUsersAdvanced(
             @RequestBody UserCacheSearchRequest request
     ) {
         PagedResponse<UserCache> response = userCacheService.searchUsers(request);
-        return ApiResponse.Ok(response);
+        return BaseResponse.Ok(response);
     }
 
     /**
@@ -60,13 +59,13 @@ public class UserCacheController {
      * GET /api/users/search/active?term=john&pageNumber=1&pageSize=10
      */
     @GetMapping("search/active")
-    public ApiResponse searchActiveUsers(
+    public BaseResponse searchActiveUsers(
             @RequestParam(required = false) String term,
             @RequestParam(defaultValue = "1") int pageNumber,
             @RequestParam(defaultValue = "10") int pageSize
     ) {
         PagedResponse<UserCache> response = userCacheService.searchActiveUsers(term, pageNumber, pageSize);
-        return ApiResponse.Ok(response);
+        return BaseResponse.Ok(response);
     }
 
     /**
@@ -74,7 +73,7 @@ public class UserCacheController {
      * GET /api/users/search/exclude/{userId}?term=john&pageNumber=1&pageSize=10
      */
     @GetMapping("search/exclude/{userId}")
-    public ApiResponse searchUsersExcluding(
+    public BaseResponse searchUsersExcluding(
             @PathVariable String userId,
             @RequestParam(required = false) String term,
             @RequestParam(defaultValue = "1") int pageNumber,
@@ -83,7 +82,7 @@ public class UserCacheController {
         PagedResponse<UserCache> response = userCacheService.searchUsersExcluding(
                 userId, term, pageNumber, pageSize
         );
-        return ApiResponse.Ok(response);
+        return BaseResponse.Ok(response);
     }
 
     /**
@@ -91,10 +90,10 @@ public class UserCacheController {
      * GET /api/users/{id}
      */
     @GetMapping("/{id}")
-    public ApiResponse getUserById(@PathVariable String id) {
+    public BaseResponse getUserById(@PathVariable String id) {
         return userCacheService.getUserById(id)
-                .map(ApiResponse::Ok)
-                .orElse(ApiErrorResponse.BadRequest("User not found"));
+                .map(BaseResponse::Ok)
+                .orElse(BaseResponse.RaiseError("User not found", new Exception("User not found")));
     }
 
     /**
@@ -102,9 +101,9 @@ public class UserCacheController {
      * GET /api/users/by-user-id/{userId}
      */
     @GetMapping("/by-user-id/{userId}")
-    public ApiResponse getUserByUserId(@PathVariable String userId) {
+    public BaseResponse getUserByUserId(@PathVariable String userId) {
         return userCacheService.getUserByUserId(userId)
-                .map(ApiResponse::Ok)
-                .orElse(ApiErrorResponse.BadRequest("User not found"));
+                .map(BaseResponse::Ok)
+                .orElse(BaseResponse.RaiseError("User not found", new Exception("User not found")));
     }
 }
