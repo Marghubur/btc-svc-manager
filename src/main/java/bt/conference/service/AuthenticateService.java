@@ -5,12 +5,10 @@ import bt.conference.model.ApplicationConstant;
 import bt.conference.entity.LoginDetail;
 import bt.conference.model.LoginResponse;
 import bt.conference.serviceinterface.IAuthenticateService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fierhub.database.service.DbManager;
 import com.fierhub.database.utils.DbParameters;
 import com.fierhub.database.utils.ProcedureManager;
 import com.fierhub.model.ApiAuthResponse;
-import com.fierhub.model.JwtSecret;
 import com.fierhub.service.FierhubService;
 import com.fierhub.service.JwtService;
 import io.jsonwebtoken.Claims;
@@ -33,8 +31,6 @@ public class AuthenticateService implements IAuthenticateService {
     FierhubService fierhubService;
     @Autowired
     ProcedureManager dbProcedureManager;
-    @Autowired
-    DbManager dbManager;
     @Autowired
     JwtService jwtService;
 
