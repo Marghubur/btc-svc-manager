@@ -2,7 +2,7 @@ package bt.conference.controller;
 
 import bt.conference.config.LivekitConfig;
 import bt.conference.service.RecordingService;
-import in.bottomhalf.common.models.ApiResponse;
+import com.fierhub.model.BaseResponse;
 import io.livekit.server.WebhookReceiver;
 import livekit.LivekitWebhook;
 import lombok.AllArgsConstructor;
@@ -39,7 +39,7 @@ public class LivekitWebhookController {
 
 
     @PostMapping(value = "livekit/webhook", consumes = "application/webhook+json")
-    public ApiResponse receiveWebhook(@RequestHeader("Authorization") String authHeader, @RequestBody String body) {
+    public BaseResponse receiveWebhook(@RequestHeader("Authorization") String authHeader, @RequestBody String body) {
         WebhookReceiver webhookReceiver = new WebhookReceiver(
                 livekitConfig.getApiKey(),
                 livekitConfig.getApiSecret()
@@ -51,6 +51,6 @@ public class LivekitWebhookController {
         } catch (Exception e) {
             System.err.println("Error validating webhook event: " + e.getMessage());
         }
-        return ApiResponse.Ok("ok");
+        return BaseResponse.Ok("ok");
     }
 }

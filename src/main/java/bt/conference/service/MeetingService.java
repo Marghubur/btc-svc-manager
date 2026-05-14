@@ -2,7 +2,6 @@ package bt.conference.service;
 
 import bt.conference.dto.PagedResponse;
 import bt.conference.entity.Conversation;
-import bt.conference.entity.LoginDetail;
 import bt.conference.entity.MeetingDetail;
 import bt.conference.entity.UserDetail;
 import bt.conference.model.GuestMeeting;
@@ -11,7 +10,7 @@ import bt.conference.repository.ConversationRepository;
 import bt.conference.serviceinterface.IMeetingService;
 import com.fierhub.database.service.DbManager;
 import com.fierhub.database.utils.DbParameters;
-import com.fierhub.database.utils.DbProcedureManager;
+import com.fierhub.database.utils.ProcedureManager;
 import com.fierhub.model.UserSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -19,8 +18,6 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.sql.Types;
-import java.time.Instant;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
@@ -29,7 +26,7 @@ public class MeetingService implements IMeetingService {
     @Autowired
     UserSession userSession;
     @Autowired
-    DbProcedureManager dbProcedureManager;
+    ProcedureManager dbProcedureManager;
     @Autowired
     DbManager dbManager;
     @Autowired

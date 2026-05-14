@@ -3,11 +3,12 @@ package bt.conference.controller;
 import bt.conference.model.GlobalSearchResponse;
 import bt.conference.service.GlobalSearchService;
 
-import in.bottomhalf.common.models.ApiErrorResponse;
-import in.bottomhalf.common.models.ApiResponse;
+import com.fierhub.model.ApiErrorResponse;
+import com.fierhub.model.BaseResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -31,18 +32,18 @@ public class GlobalSearchController {
      * GET /api/search/health
      */
     @GetMapping("health/")
-    public ApiResponse health() {
+    public BaseResponse health() {
         boolean healthy = searchService.isHealthy();
         if (healthy) {
-            return ApiResponse.Ok(Map.of(
+            return BaseResponse.Ok(Map.of(
                     "status", "UP",
                     "service", "GlobalSearchService"
             ));
         }
-        return ApiErrorResponse.BadRequest(Map.of(
+        return ApiErrorResponse.RaiseError(Map.of(
                 "status", "DOWN",
                 "service", "GlobalSearchService"
-        ));
+        ), HttpStatus.SERVICE_UNAVAILABLE, "Search service is currently unavailable");
     }
 
     /**
@@ -50,8 +51,8 @@ public class GlobalSearchController {
      * GET /api/search/metrics
      */
     @GetMapping("metrics/")
-    public ApiResponse metrics() {
-        return ApiResponse.Ok(searchService.getMetrics());
+    public BaseResponse metrics() {
+        return BaseResponse.Ok(searchService.getMetrics());
     }
 
     /**
@@ -61,7 +62,7 @@ public class GlobalSearchController {
      * Returns limited results (5 per category) for quick display
      */
     @GetMapping("/typeahead")
-    public ApiResponse typeahead(
+    public BaseResponse typeahead(
             @RequestParam("q") String query,
             @RequestParam("fs") String fullSearch
     ) {
@@ -74,7 +75,7 @@ public class GlobalSearchController {
      * GET /api/search/global?q=istiy&page=0&limit=20
      */
     @GetMapping("/global")
-    public ApiResponse globalSearch(
+    public BaseResponse globalSearch(
             @RequestParam("q") String query,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "limit", defaultValue = "20") int limit,
@@ -92,7 +93,7 @@ public class GlobalSearchController {
      * GET /api/search/users?q=istiy&page=0&limit=20
      */
     @GetMapping("/users")
-    public ApiResponse searchUsers(
+    public BaseResponse searchUsers(
             @RequestParam("q") String query,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "limit", defaultValue = "20") int limit,
@@ -108,7 +109,7 @@ public class GlobalSearchController {
      * GET /api/search/conversations?q=istiy&page=0&limit=20
      */
     @GetMapping("/conversations")
-    public ApiResponse searchConversations(
+    public BaseResponse searchConversations(
             @RequestParam("q") String query,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "limit", defaultValue = "20") int limit,
@@ -122,19 +123,27 @@ public class GlobalSearchController {
     /**
      * Build appropriate response based on error state
      */
-    private ApiResponse buildResponse(GlobalSearchResponse response) {
+    private BaseResponse buildResponse(GlobalSearchResponse response) {
         if (response.hasError()) {
-            return ApiErrorResponse.BadRequest(response);
+            return ApiErrorResponse.RaiseError(
+                    response,
+                    HttpStatus.valueOf(response.getError().getCode()),
+                    response.getError().getMessage()
+            );
         }
-        return ApiResponse.Ok(response);
+        return BaseResponse.Ok(response);
     }
 
     /**
      * Global exception handler for this controller
      */
     @ExceptionHandler(Exception.class)
-    public ApiResponse handleException(Exception ex) {
+    public BaseResponse handleException(Exception ex) {
         logger.error("Unhandled exception in search controller: {}", ex.getMessage(), ex);
-        return ApiErrorResponse.BadRequest(GlobalSearchResponse.error("INTERNAL_ERROR", "An unexpected error occurred"));
+        return ApiErrorResponse.RaiseError(
+                GlobalSearchResponse.error("INTERNAL_ERROR", "An unexpected error occurred"),
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "An unexpected error occurred while processing the search request"
+        );
     }
 }

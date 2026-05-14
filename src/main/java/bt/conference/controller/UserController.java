@@ -1,7 +1,7 @@
 package bt.conference.controller;
 
 import bt.conference.serviceinterface.IUserService;
-import in.bottomhalf.common.models.ApiResponse;
+import com.fierhub.model.BaseResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,8 +12,8 @@ public class UserController {
     IUserService _userService;
 
     @GetMapping("getAllUser")
-    public ApiResponse getAllUser() throws Exception {
+    public BaseResponse getAllUser() throws Exception {
         var result = _userService.getAllUserService();
-        return ApiResponse.Ok(result);
+        return BaseResponse.Ok(result);
     }
 }
