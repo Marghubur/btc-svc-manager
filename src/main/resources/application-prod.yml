@@ -37,9 +37,8 @@ security:
     expiry-time-in-seconds: 3600
     refresh-token-expiry-time-in-seconds: 72
 
-fierhub:
-  skipCheck: true
-  routes:
+routes:
+  authorized:
     - /api/auth/authenticateUser
     - /api/auth
     - /api/conference/token

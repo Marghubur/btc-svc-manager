@@ -39,7 +39,9 @@ security:
 
 fierhub:
   skipCheck: true
-  routes:
+
+routes:
+  authorized:
     - /api/auth/authenticateUser
     - /api/auth
     - /api/conference/token
