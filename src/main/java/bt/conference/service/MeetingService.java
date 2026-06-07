@@ -67,7 +67,11 @@ public class MeetingService implements IMeetingService {
     }
 
     public PagedResponse<Conversation> getRecentMeetingsService() throws Exception {
-        int userId = Integer.parseInt(userSession.getUserId().replace(userSession.getCode(), ""));
+        var code = userSession.getClaimsValue().get("code");
+        if (code == null || code.isEmpty())
+            throw new Exception("Invalid user session");
+
+        int userId = Integer.parseInt(userSession.getUserId().replace(code, ""));
         return conversationService.searchConversationsRecentGroup(String.valueOf(userId), 1, 5);
     }
 
