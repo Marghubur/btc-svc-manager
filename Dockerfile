@@ -4,7 +4,7 @@ WORKDIR /app
 EXPOSE 7801
 
 # Copy the pre-built jar from the runner build context
-COPY --from=MAVEN /build/target/btc-svc-manager.jar /app/
+COPY /build/target/btc-svc-manager.jar /app/
 
 # Receive env from CI/CD build args
 ARG BUILD_CONFIG=prod
