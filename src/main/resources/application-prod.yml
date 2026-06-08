@@ -30,16 +30,16 @@ livekit:
   api-key: APIJByNUPVKqDS8
   api-secret: mcv0eMRL9uSw3fAna0jkDjxs4ZKBvpAM5WV9k3fOvk4B
 
-security:
-  jwt:
-    key: bottomhalfx12#@-emstum-api-servic-x#20$46@3211
-    issuer: bottomhalf-services
-    expiry-time-in-seconds: 3600
-    refresh-token-expiry-time-in-seconds: 72
+#security:
+#  jwt:
+#    key: bottomhalfx12#@-emstum-api-servic-x#20$46@3211
+#    issuer: bottomhalf-services
+#    expiry-time-in-seconds: 3600
+#    refresh-token-expiry-time-in-seconds: 72
 
-routes:
-  authorized:
-    - /api/auth/authenticateUser
-    - /api/auth
-    - /api/conference/token
-    - /api/meeting/validateMeeting
+#routes:
+#  authorized:
+#    - /api/auth/authenticateUser
+#    - /api/auth
+#    - /api/conference/token
+#    - /api/meeting/validateMeeting
