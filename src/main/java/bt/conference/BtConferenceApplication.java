@@ -9,6 +9,9 @@ import org.springframework.data.mongodb.repository.config.EnableMongoRepositorie
 public class BtConferenceApplication {
 
 	public static void main(String[] args) {
+		System.out.println("=========================================================");
+		System.out.println("🚀 BtConferenceApplication starting with NEW deployment changes! 🚀");
+		System.out.println("=========================================================");
 		SpringApplication.run(BtConferenceApplication.class, args);
 	}
 
