@@ -29,12 +29,15 @@ jobs:
     - name: Build & Push Docker Image
       run: |
         echo "Displaying token value: ${{ secrets.REPOSITORY_USERNAME }}"
+        # Tag with both the specific commit SHA and dev-2509
         docker build \
           --build-arg REPOSITORY_USERNAME=${{ secrets.REPOSITORY_USERNAME }} \
           --build-arg REPOSITORY_TOKEN=${{ secrets.REPOSITORY_TOKEN }} \
+          -t bottomhalflimited/conf.svc.manager:${{ github.sha }} \
           -t bottomhalflimited/conf.svc.manager:dev-2509 .
         echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-        docker push bottomhalflimited/conf.svc.manager:dev-2509        
+        docker push bottomhalflimited/conf.svc.manager:${{ github.sha }}
+        docker push bottomhalflimited/conf.svc.manager:dev-2509
 
     - name: SSH to Remote server and deploy
       run: |
@@ -44,8 +47,8 @@ jobs:
 
     - name: Apply new changes
       run: |
-        echo "Deleting existing Kubernetes resources"
-        ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "microk8s kubectl delete -f /root/kube.ws/confeet/main-service/conf-manager-deploy.yml"
+        echo "Updating image tag in Kubernetes deployment to ensure it pulls the new image"
+        ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "sed -E -i 's|bottomhalflimited/conf.svc.manager:[^[:space:]\"\x27]+|bottomhalflimited/conf.svc.manager:${{ github.sha }}|g' /root/kube.ws/confeet/main-service/conf-manager-deploy.yml"
         
         echo "Applying new Kubernetes configuration"
         ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "microk8s kubectl apply -f /root/kube.ws/confeet/main-service/conf-manager-deploy.yml"
