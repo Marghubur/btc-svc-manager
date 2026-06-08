@@ -1,20 +1,15 @@
-FROM maven:3.8.1-openjdk-17 AS MAVEN
-
-MAINTAINER BOTTOMHALF
-
-# Create .m2 directory if it doesn't exist
-RUN mkdir -p /root/.m2
-
-COPY pom.xml /build/
-COPY src /build/src/
-
-WORKDIR /build/
-RUN mvn package
-
-FROM eclipse-temurin:17-jdk
+# Stage 1: Build the application
+FROM eclipse-temurin:17-jre
 WORKDIR /app
 EXPOSE 7801
 
-COPY --from=MAVEN /build/target/btc-svc-manager.jar /app/
+# Copy the pre-built jar from the runner build context
+COPY target/btc-svc-manager.jar /app/
 
-ENTRYPOINT ["java", "-jar", "btc-svc-manager.jar", "--spring.profiles.active=prod"]
+# Receive env from CI/CD build args
+ARG BUILD_CONFIG=prod
+
+# Use environment variable (Spring Boot automatically binds this to spring.profiles.active)
+ENV SPRING_PROFILES_ACTIVE=$BUILD_CONFIG
+
+ENTRYPOINT ["java", "-jar", "btc-svc-manager.jar"]
