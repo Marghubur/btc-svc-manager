@@ -30,19 +30,19 @@ livekit:
   api-key: APIJByNUPVKqDS8
   api-secret: mcv0eMRL9uSw3fAna0jkDjxs4ZKBvpAM5WV9k3fOvk4B
 
-security:
-  jwt:
-    key: bottomhalfx12#@-emstum-api-servic-x#20$46@3211
-    issuer: bottomhalf-services
-    expiry-time-in-seconds: 30
-    refresh-token-expiry-time-in-seconds: 604800
+#security:
+#  jwt:
+#    key: bottomhalfx12#@-emstum-api-servic-x#20$46@3211
+#    issuer: bottomhalf-services
+#    expiry-time-in-seconds: 30
+#    refresh-token-expiry-time-in-seconds: 604800
 
 fierhub:
-  skipCheck: true
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJhbnkiLCJuYmYiOjE3NzMzODk1ODMsImV4cCI6MTgwNjUxNzc0OCwiaWF0IjoxNzczMzg5NTgzfQ.DMCaVuGK5XDYe8VZw5GNfROq4YtCtBhArs7Kt4Qo57c_tid13_cid=13
 
-routes:
-  authorized:
-    - /api/auth/authenticateUser
-    - /api/auth
-    - /api/conference/token
-    - /api/meeting/validateMeeting
+#routes:
+#  authorized:
+#    - /api/auth/authenticateUser
+#    - /api/auth
+#    - /api/conference/token
+#    - /api/meeting/validateMeeting
