@@ -90,17 +90,19 @@ public class GlobalSearchController {
 
     /**
      * Search only users/people
-     * GET /api/search/users?q=istiy&page=0&limit=20
+     * GET /api/search/users?q=istiy&page=0&limit=20&sortBy=firstName&sortDirection=ASC
      */
     @GetMapping("/users")
     public BaseResponse searchUsers(
             @RequestParam("q") String query,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "limit", defaultValue = "20") int limit,
+            @RequestParam(value = "sortBy", defaultValue = "firstName") String sortBy,
+            @RequestParam(value = "sortDirection", defaultValue = "ASC") String sortDirection,
             Principal principal) {
 
         String userId = principal != null ? principal.getName() : null;
-        GlobalSearchResponse response = searchService.searchUsers(query, userId, page, limit);
+        GlobalSearchResponse response = searchService.searchUsers(query, userId, page, limit, sortBy, sortDirection);
         return buildResponse(response);
     }
 

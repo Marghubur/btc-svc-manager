@@ -101,6 +101,13 @@ public class GlobalSearchService {
      * Search only users
      */
     public GlobalSearchResponse searchUsers(String searchTerm, String currentUserId, int page, int limit) {
+        return searchUsers(searchTerm, currentUserId, page, limit, "firstName", "ASC");
+    }
+
+    /**
+     * Search only users with pagination, sorting options.
+     */
+    public GlobalSearchResponse searchUsers(String searchTerm, String currentUserId, int page, int limit, String sortBy, String sortDirection) {
         long startTime = System.currentTimeMillis();
 
         if (!isValidSearchTerm(searchTerm)) {
@@ -111,8 +118,9 @@ public class GlobalSearchService {
         limit = Math.min(Math.max(1, limit), MAX_LIMIT);
 
         try {
+            // Using the new highly optimized parallel search specifically for users
             SearchResultItem results = searchRepository.globalSearch(
-                    searchTerm.trim(), currentUserId, page * limit, limit);
+                    searchTerm.trim(), page, limit, sortBy, sortDirection);
 
             return buildResponse(results, searchTerm, page, limit, startTime, false, false);
 
@@ -160,11 +168,11 @@ public class GlobalSearchService {
 
         // Build grouped results
         GroupedResults grouped = GroupedResults.builder()
-                .users(results.getUserCache())
+                .users(results.getUsers())
                 .conversations(results.getConversation())
                 .messages(Collections.emptyList()) // Future: add message search
                 .files(Collections.emptyList())    // Future: add file search
-                .userCount(results.getUserCache().size())
+                .userCount(results.getUsers().size())
                 .conversationCount(results.getConversation().size())
                 .messageCount(0)
                 .fileCount(0)
@@ -174,7 +182,7 @@ public class GlobalSearchService {
                 .results(grouped)
                 .metadata(SearchMetadata.builder()
                         .searchTerm(searchTerm)
-                        .totalCount(results.getUserCache().size() + results.getConversation().size())
+                        .totalCount(results.getUsers().size() + results.getConversation().size())
                         .page(page)
                         .limit(limit)
                         .executionTimeMs(System.currentTimeMillis() - startTime)

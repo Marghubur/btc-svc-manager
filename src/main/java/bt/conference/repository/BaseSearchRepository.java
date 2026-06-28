@@ -228,7 +228,7 @@ public abstract class BaseSearchRepository<T> {
             query = TextQuery.queryText(textCriteria).sortByScore();
         } else {
             Pattern pattern = Pattern.compile(
-                    "^" + Pattern.quote(searchTerm),
+                    "^" + escapeRegex(searchTerm),
                     Pattern.CASE_INSENSITIVE
             );
             query = new Query(buildRegexSearchCriteria(pattern));
@@ -245,14 +245,14 @@ public abstract class BaseSearchRepository<T> {
      * Build regex pattern for case-insensitive prefix matching.
      */
     protected Pattern buildPrefixPattern(String searchTerm) {
-        return Pattern.compile("^" + Pattern.quote(searchTerm), Pattern.CASE_INSENSITIVE);
+        return Pattern.compile("^" + escapeRegex(searchTerm), Pattern.CASE_INSENSITIVE);
     }
 
     /**
      * Build regex pattern for case-insensitive contains matching.
      */
     protected Pattern buildContainsPattern(String searchTerm) {
-        return Pattern.compile(Pattern.quote(searchTerm), Pattern.CASE_INSENSITIVE);
+        return Pattern.compile(escapeRegex(searchTerm), Pattern.CASE_INSENSITIVE);
     }
 
     /**
@@ -308,6 +308,13 @@ public abstract class BaseSearchRepository<T> {
         }
 
         return highlights.isEmpty() ? null : highlights;
+    }
+
+    protected String escapeRegex(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.replaceAll("([\\\\\\.\\*\\+\\?\\^\\$\\{\\}\\(\\)\\|\\[\\]])", "\\\\$1");
     }
 
     // ==================== Metrics ====================

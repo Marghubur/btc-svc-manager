@@ -1,7 +1,7 @@
 package bt.conference.model;
 
 import bt.conference.entity.Conversation;
-import bt.conference.entity.UserCache;
+import bt.conference.entity.Users;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -29,9 +29,9 @@ public class SearchResultItem {
     private ResultType type;
 
     /**
-     * UserCache entity
+     * Users entity
      */
-    private List<UserCache> userCache;
+    private List<Users> users;
 
     /**
      * Conversation entity

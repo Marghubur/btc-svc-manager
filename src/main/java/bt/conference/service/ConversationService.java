@@ -3,9 +3,11 @@ package bt.conference.service;
 import bt.conference.dto.*;
 import bt.conference.entity.Conversation;
 import bt.conference.entity.Conversation.Participant;
-import bt.conference.entity.UserCache;
+import bt.conference.entity.ConversationMembers;
+import bt.conference.entity.Users;
+import bt.conference.repository.ConversationMembersRepository;
 import bt.conference.repository.ConversationRepository;
-import bt.conference.repository.UserCacheRepository;
+import bt.conference.repository.UsersRepository;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import com.fierhub.model.UserSession;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +35,8 @@ import java.util.*;
 @RequiredArgsConstructor
 public class ConversationService {
     private final ConversationRepository conversationRepository;
-    private final UserCacheRepository userCacheRepository;
+    private final ConversationMembersRepository conversationMembersRepository;
+    private final UsersRepository usersRepository;
     private final MongoTemplate mongoTemplate;
     private final UserSession userSession;
 
@@ -47,7 +50,7 @@ public class ConversationService {
         Pageable pageable = PageRequest.of(
                 pageNumber - 1,  // Spring uses 0-indexed pages
                 pageSize,
-                Sort.by(Sort.Direction.DESC, "last_message_at")
+                Sort.by(Sort.Direction.DESC, "lastMessageAt")
         );
 
         Page<Conversation> page = conversationRepository.findAll(pageable);
@@ -66,29 +69,31 @@ public class ConversationService {
     public PagedResponse<Conversation> getRoomsService(
             int pageNumber,
             int pageSize) {
-        int skip = (pageNumber - 1) * pageSize;
+        
+        List<ConversationMembers> memberships = conversationMembersRepository.findByUserId(this.userSession.getUserId());
+        List<String> conversationIds = memberships.stream()
+                .map(ConversationMembers::getConversationId)
+                .toList();
 
-        // Build criteria dynamically
-        Criteria criteria = Criteria.where("participant_ids").is(this.userSession.getUserId())
-                .and("is_active").is(true);
+        if (conversationIds.isEmpty()) {
+            return PagedResponse.of(
+                    Collections.emptyList(),
+                    0,
+                    pageNumber,
+                    pageSize
+            );
+        }
 
-        // Create query
-        Query query = new Query(criteria)
-                .with(Sort.by(Sort.Direction.DESC, "last_message_at"))
-                .skip(skip)
-                .limit(pageSize);
+        Pageable pageable = PageRequest.of(
+                pageNumber - 1,
+                pageSize
+        );
 
-        // Get total count for pagination
-        long total = mongoTemplate.count(query, Conversation.class);
-
-        List<Conversation> conversations = mongoTemplate.find(query, Conversation.class);
-
-        // Calculate total pages
-        int totalPages = (int) Math.ceil((double) total / pageSize);
+        Page<Conversation> page = conversationRepository.findByIdInAndIsDeletedFalseOrderByLastMessageAtDesc(conversationIds, pageable);
 
         return PagedResponse.of(
-                conversations,
-                totalPages,
+                page.getContent(),
+                page.getTotalPages(),
                 pageNumber,
                 pageSize
         );
@@ -106,7 +111,7 @@ public class ConversationService {
 
         // Fetch with pagination
         Query query = new Query()
-                .with(Sort.by(Sort.Direction.DESC, "last_message_at"))
+                .with(Sort.by(Sort.Direction.DESC, "lastMessageAt"))
                 .skip(skip)
                 .limit(pageSize);
 
@@ -133,16 +138,33 @@ public class ConversationService {
         int skip = (pageNumber - 1) * pageSize;
 
         Query query = new Query();
+        query.addCriteria(Criteria.where("type").is("GROUP"));
+        query.addCriteria(Criteria.where("isDeleted").is(false));
 
         // Add search filter if term provided
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
             String pattern = searchTerm.trim();
 
-            Criteria searchCriteria = Criteria
-                    .where("conversation_type").is("group")
-                    .and("participants.user_id").regex(pattern, "i");
+            // Find users matching search term
+            Query userQuery = new Query(new Criteria().orOperator(
+                    Criteria.where("username").regex(pattern, "i"),
+                    Criteria.where("email").regex(pattern, "i"),
+                    Criteria.where("firstName").regex(pattern, "i"),
+                    Criteria.where("lastName").regex(pattern, "i")
+            ));
+            List<Users> users = mongoTemplate.find(userQuery, Users.class);
+            List<String> userIds = users.stream().map(Users::getId).toList();
 
-            query.addCriteria(searchCriteria);
+            // Find memberships
+            List<ConversationMembers> memberships = mongoTemplate.find(
+                    new Query(Criteria.where("userId").in(userIds)),
+                    ConversationMembers.class
+            );
+            List<String> conversationIds = memberships.stream()
+                    .map(ConversationMembers::getConversationId)
+                    .toList();
+
+            query.addCriteria(Criteria.where("id").in(conversationIds));
         }
 
         // Count total matching records
@@ -151,7 +173,7 @@ public class ConversationService {
         log.info("Search term: '{}', Total records found: {}", searchTerm, totalRecords);
 
         // Add sorting and pagination
-        query.with(Sort.by(Sort.Direction.DESC, "last_message_at"));
+        query.with(Sort.by(Sort.Direction.DESC, "lastMessageAt"));
         query.skip(skip);
         query.limit(pageSize);
 
@@ -181,15 +203,35 @@ public class ConversationService {
         int skip = (pageNumber - 1) * pageSize;
 
         Query query = new Query();
+        query.addCriteria(Criteria.where("isDeleted").is(false));
 
         // Add search filter if term provided
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
             String pattern = searchTerm.trim();
 
+            // Find users matching search term
+            Query userQuery = new Query(new Criteria().orOperator(
+                    Criteria.where("username").regex(pattern, "i"),
+                    Criteria.where("email").regex(pattern, "i"),
+                    Criteria.where("firstName").regex(pattern, "i"),
+                    Criteria.where("lastName").regex(pattern, "i")
+            ));
+            List<Users> users = mongoTemplate.find(userQuery, Users.class);
+            List<String> userIds = users.stream().map(Users::getId).toList();
+
+            // Find memberships
+            List<ConversationMembers> memberships = mongoTemplate.find(
+                    new Query(Criteria.where("userId").in(userIds)),
+                    ConversationMembers.class
+            );
+            List<String> conversationIds = memberships.stream()
+                    .map(ConversationMembers::getConversationId)
+                    .toList();
+
             Criteria searchCriteria = new Criteria().orOperator(
-                    Criteria.where("conversation_name").regex(pattern, "i"),
-                    Criteria.where("participants.user_id").regex(pattern, "i"),
-                    Criteria.where("participants.email").regex(pattern, "i")
+                    Criteria.where("title").regex(pattern, "i"),
+                    Criteria.where("description").regex(pattern, "i"),
+                    Criteria.where("id").in(conversationIds)
             );
 
             query.addCriteria(searchCriteria);
@@ -201,7 +243,7 @@ public class ConversationService {
         log.info("Search term: '{}', Total records found: {}", searchTerm, totalRecords);
 
         // Add sorting and pagination
-        query.with(Sort.by(Sort.Direction.DESC, "last_message_at"));
+        query.with(Sort.by(Sort.Direction.DESC, "lastMessageAt"));
         query.skip(skip);
         query.limit(pageSize);
 
@@ -223,13 +265,13 @@ public class ConversationService {
     /**
      * Search conversations by term (username, email, conversation_name)
      */
-    public Conversation createSingleChannelService(String senderId, Conversation conversation) {
+    public Conversation createSingleChannelService(String recipientId, Conversation conversation) {
         // Validate: Check only two participants for direct chat
-        if (conversation.getParticipantIds().size() != 2) {
+        if (recipientId == null || conversation.getCreatedBy() == null || conversation.getCreatedBy().isEmpty()) {
             throw new IllegalArgumentException("Cannot create conversation, required sender and receiver detail");
         }
 
-        return createConversationService(senderId, "direct", conversation);
+        return createConversationService(recipientId, "direct", conversation);
     }
 
     /**
@@ -260,17 +302,17 @@ public class ConversationService {
         }
 
 
-        Optional<UserCache> userCache = this.userCacheRepository.findByUserId(userSession.getUserId());
+        Optional<Users> userCache = this.usersRepository.findById(userSession.getUserId());
         var currentUser = userCache.stream().findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userSession.getUserId()));
 
         Instant now = Instant.now();
         participants.add(Participant.builder()
-                .userId(currentUser.getUserId())
+                .userId(currentUser.getId())
                 .firstName(currentUser.getFirstName())
                 .lastName(currentUser.getLastName())
                 .email(currentUser.getEmail())
-                .avatar(currentUser.getAvatar())
+                .avatar(currentUser.getAvatarUrl())
                 .joinedAt(now)
                 .role("User")
                 .build());
@@ -283,19 +325,15 @@ public class ConversationService {
         owner.setRole("admin");
 
         // Build conversation
-
         Conversation conversationInstance = Conversation.builder()
-                .conversationType("group")
-                .participantIds(participants.stream().map(Participant::getUserId).toList())
-                .participants(participants)
-                .conversationName(groupName)  // Direct chats don't have name
-                .conversationAvatar(null)
+                .type("GROUP")
+                .title(groupName)
+                .avatar(null)
                 .createdBy(owner.getUserId())
                 .createdAt(now)
-                .updatedAt(now)
-                .lastMessage(null)
                 .lastMessageAt(now)
-                .isActive(true)
+                .isDeleted(false)
+                .memberCount(participants.size())
                 .settings(Conversation.ConversationSettings.builder()
                         .allowReactions(true)
                         .allowPinning(true)
@@ -317,7 +355,29 @@ public class ConversationService {
         // Save to database
         Conversation saved = conversationRepository.save(conversationInstance);
 
-        log.info("Created new direct conversation: {}", saved.getId());
+        // Save members in conversation_members
+        for (Participant p : participants) {
+            ConversationMembers member = ConversationMembers.builder()
+                    .id(new ObjectId().toHexString())
+                    .conversationId(saved.getId())
+                    .userId(p.getUserId())
+                    .role("admin".equalsIgnoreCase(p.getRole()) ? "ADMIN" : "MEMBER")
+                    .joinedAt(now)
+                    .joinedBy(owner.getUserId())
+                    .status("ACTIVE")
+                    .unreadCount(0)
+                    .isMuted(false)
+                    .isPinned(false)
+                    .isArchived(false)
+                    .notification("ALL")
+                    .nickname(p.getFirstName() + "_" + p.getLastName())
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+            conversationMembersRepository.save(member);
+        }
+
+        log.info("Created new group conversation: {}", saved.getId());
 
         return saved;
     }
@@ -331,7 +391,7 @@ public class ConversationService {
     }
 
     public String generateUUID(String firstUserId, String secondUserId) {
-        // 1️⃣ Sort both IDs lexicographically (FULL string, not first char)
+        // Sort both IDs lexicographically
         String id1;
         String id2;
 
@@ -343,13 +403,13 @@ public class ConversationService {
             id2 = firstUserId;
         }
 
-        // 2️⃣ Concatenate after sorting
+        // Concatenate after sorting
         String value = id1 + id2;
 
-        // 3️⃣ Fixed namespace (same as Go)
+        // Fixed namespace
         UUID namespace = UUID.fromString("6ba7b810-9dad-11d1-80b4-00c04fd430c8");
 
-        // 4️⃣ Deterministic UUID (SHA-1 based)
+        // Deterministic UUID
         byte[] nameBytes = (namespace.toString() + value)
                 .getBytes(StandardCharsets.UTF_8);
 
@@ -362,14 +422,14 @@ public class ConversationService {
 
     public String generateMongoObjectId(String firstUserId, String secondUserId) {
         try {
-            // Step 1: Generate deterministic UUID
+            // Generate deterministic UUID
             String uuid = generateUUID(firstUserId, secondUserId);
 
-            // Step 2: SHA-1 hash of UUID (same family as UUID v5)
+            // SHA-1 hash of UUID
             MessageDigest sha1 = MessageDigest.getInstance("SHA-1");
             byte[] hash = sha1.digest(uuid.getBytes(StandardCharsets.UTF_8));
 
-            // Step 3: Take first 12 bytes → MongoDB ObjectId
+            // Take first 12 bytes
             byte[] objectIdBytes = new byte[12];
             System.arraycopy(hash, 0, objectIdBytes, 0, 12);
 
@@ -382,6 +442,7 @@ public class ConversationService {
 
     private Conversation createConversationService(String senderId, String type, Conversation conversation) {
         String receiverId;
+
         Optional<String> filterSender = conversation.getParticipantIds()
                 .stream()
                 .filter(x -> x.equals(senderId))
@@ -403,53 +464,41 @@ public class ConversationService {
         receiverId = filterReceiver.get();
 
         // Get user details
-        UserCache sender = userCacheRepository.findByUserId(senderId)
+        Users sender = usersRepository.findById(senderId)
                 .orElseThrow(() -> new RuntimeException("Current user not found: " + senderId));
 
-        UserCache receiver = userCacheRepository.findByUserId(receiverId)
+        Users receiver = usersRepository.findById(receiverId)
                 .orElseThrow(() -> new RuntimeException("Other user not found: " + receiverId));
 
         // Validate
-        if (sender.getUserId().equals(receiver.getUserId())) {
+        if (sender.getId().equals(receiver.getId())) {
             throw new IllegalArgumentException("Cannot create conversation with yourself");
         }
 
-        log.info("Creating direct conversation between {} and {}", sender.getUserId(), receiver.getUserId());
-
+        log.info("Creating direct conversation between {} and {}", sender.getId(), receiver.getId());
 
         // Check if direct conversation already exists
-        Optional<Conversation> existing = conversationRepository
-                .findDirectConversation(senderId, receiver.getUserId());
+        Optional<Conversation> existing = conversationRepository.findDirectConversation(sender.getId(), receiver.getId());
 
         if (existing.isPresent()) {
             log.info("Direct conversation already exists: {}", existing.get().getId());
             return existing.get();
         }
 
-        // Create participants
-        List<Participant> participants = new ArrayList<>();
-        participants.add(createParticipant(sender, "member"));
-        participants.add(createParticipant(receiver, "member"));
-
-        // Create participant IDs list
-        List<String> participantIds = List.of(senderId, receiver.getUserId());
-
         // Build conversation
         Instant now = Instant.now();
+        String conversationIdHex = generateMongoObjectId(sender.getId(), receiver.getId());
 
         Conversation conversationInstance = Conversation.builder()
-                .id(generateMongoObjectId(sender.getUserId(), receiver.getUserId()))
-                .conversationType(type)
-                .participantIds(participantIds)
-                .participants(participants)
-                .conversationName(receiver.getUsername())  // Direct chats don't have name
-                .conversationAvatar(null)
+                .id(conversationIdHex)
+                .type(type.toUpperCase())
+                .title("")  // Direct chats don't have title
+                .avatar(null)
                 .createdBy(senderId)
                 .createdAt(now)
-                .updatedAt(now)
-                .lastMessage(null)
                 .lastMessageAt(now)
-                .isActive(true)
+                .isDeleted(false)
+                .memberCount(2)
                 .settings(Conversation.ConversationSettings.builder()
                         .allowReactions(true)
                         .allowPinning(true)
@@ -460,26 +509,57 @@ public class ConversationService {
         // Save to database
         Conversation saved = conversationRepository.save(conversationInstance);
 
+        // Save members in conversation_members
+        ConversationMembers memberSender = ConversationMembers.builder()
+                .id(new ObjectId().toHexString())
+                .conversationId(saved.getId())
+                .userId(sender.getId())
+                .role("ADMIN")
+                .joinedAt(now)
+                .joinedBy(senderId)
+                .status("ACTIVE")
+                .unreadCount(0)
+                .isMuted(false)
+                .isPinned(false)
+                .isArchived(false)
+                .notification("ALL")
+                .nickname(sender.getUsername())
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+        conversationMembersRepository.save(memberSender);
+
+        ConversationMembers memberReceiver = ConversationMembers.builder()
+                .id(new ObjectId().toHexString())
+                .conversationId(saved.getId())
+                .userId(receiver.getId())
+                .role("MEMBER")
+                .joinedAt(now)
+                .joinedBy(senderId)
+                .status("ACTIVE")
+                .unreadCount(0)
+                .isMuted(false)
+                .isPinned(false)
+                .isArchived(false)
+                .notification("ALL")
+                .nickname(receiver.getUsername())
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+        conversationMembersRepository.save(memberReceiver);
+
         log.info("Created new direct conversation: {}", saved.getId());
 
         return saved;
     }
 
     public void updateLastMessage(String conversationId, Conversation.LastMessage lastMessage) {
-        return;
-    }
-
-    // ==================== HELPER METHODS ====================
-
-    private Participant createParticipant(UserCache user, String role) {
-        return Participant.builder()
-                .userId(user.getUserId())
-                .firstName(user.getFirstName())
-                .lastName(user.getLastName())
-                .email(user.getEmail())
-                .avatar(user.getAvatar())
-                .joinedAt(Instant.now())
-                .role(role)
-                .build();
+        Optional<Conversation> convOpt = conversationRepository.findById(conversationId);
+        if (convOpt.isPresent()) {
+            Conversation conv = convOpt.get();
+            conv.setLastMessageId(lastMessage.getMessageId());
+            conv.setLastMessageAt(lastMessage.getSentAt());
+            conversationRepository.save(conv);
+        }
     }
 }

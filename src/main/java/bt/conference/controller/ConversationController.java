@@ -65,7 +65,7 @@ public class ConversationController {
      * Search conversations by username, email, or conversation name
      * GET /api/conversations/search?term=john&pageNumber=1&pageSize=10
      */
-    @PostMapping("create/{id}")
+    @PutMapping("create/{id}/{recipientId}")
     public BaseResponse createChannel(@PathVariable("id") String id, @RequestBody Conversation conversation) {
         Conversation response = conversationService.createSingleChannelService(id, conversation);
         return BaseResponse.Ok(response);

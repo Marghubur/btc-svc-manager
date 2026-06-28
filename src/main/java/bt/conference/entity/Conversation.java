@@ -1,10 +1,11 @@
-// Conversation.java
 package bt.conference.entity;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
@@ -14,103 +15,91 @@ import java.util.List;
 @Data
 @Builder
 @AllArgsConstructor
+@NoArgsConstructor
 @Document(collection = "conversations")
 public class Conversation {
 
     @Id
     private String id;
 
-    @Field("conversation_type")
-    private String conversationType;
+    @Field("avatar")
+    private String avatar;
 
-    @Field("participant_ids")
-    private List<String> participantIds;
-
-    @Field("participants")
-    private List<Participant> participants;
-
-    @Field("conversation_name")
-    private String conversationName;
-
-    @Field("conversation_avatar")
-    private String conversationAvatar;
-
-    @Field("created_by")
-    private String createdBy;
-
-    @Field("created_at")
+    @Field("createdAt")
     private Instant createdAt;
 
-    @Field("updated_at")
-    private Instant updatedAt;
+    @Field("createdBy")
+    private String createdBy;
 
-    @Field("last_message")
-    private LastMessage lastMessage;
+    @Field("description")
+    private String description;
 
-    @Field("last_message_at")
+    @Field("isDeleted")
+    private boolean isDeleted;
+
+    @Field("lastMessageAt")
     private Instant lastMessageAt;
 
-    @Field("is_active")
-    private boolean isActive;
+    @Field("lastMessageId")
+    private String lastMessageId;
+
+    @Field("memberCount")
+    private int memberCount;
 
     @Field("settings")
     private ConversationSettings settings;
 
+    @Field("title")
+    private String title;
+
+    @Field("type")
+    private String type;
+
+    // Transient fields for API payloads/compatibility
+    @Transient
+    private List<String> participantIds;
+
+    @Transient
+    private List<Participant> participants;
+
     @Data
     @Builder
     @AllArgsConstructor
+    @NoArgsConstructor
     public static class Participant {
-        @Field("user_id")
         private String userId;
-
-        @Field("first_name")
         private String firstName;
-
-        @Field("last_name")
         private String lastName;
-
-        @Field("email")
         private String email;
-
-        @Field("avatar")
         private String avatar;
-
-        @Field("joined_at")
         private Instant joinedAt;
-
-        @Field("role")
         private String role;
     }
 
     @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
     public static class LastMessage {
-        @Field("message_id")
         private String messageId;
-
-        @Field("content")
         private String content;
-
-        @Field("sender_id")
         private String senderId;
-
-        @Field("sender_name")
         private String senderName;
-
-        @Field("sent_at")
         private Instant sentAt;
     }
 
     @Data
     @Builder
     @AllArgsConstructor
+    @NoArgsConstructor
     public static class ConversationSettings {
-        @Field("allow_reactions")
+        @Field("allowReactions")
         private boolean allowReactions;
 
-        @Field("allow_pinning")
+        @Field("allowPinning")
         private boolean allowPinning;
 
-        @Field("admin_only_post")
+        @Field("adminOnlyPost")
         private boolean adminOnlyPost;
     }
 }

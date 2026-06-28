@@ -6,23 +6,25 @@ server:
 spring:
   application:
     name: btc-server
+#
+#  data:
+#    mongodb:
+#      host: 145.223.22.73
+#      port: 30001
+#      database: confeet
+#      username: adminuser
+#      password: password
+#      authentication-database: admin
+#
+#  datasource:
+#    driver-class-name: com.mysql.cj.jdbc.Driver
+#    url: jdbc:mysql://145.223.22.73:32033/
+#    username: root
+#    password: live@Bottomhalf_001
+#    database: btc_meets
 
-  data:
-    mongodb:
-      host: 145.223.22.73
-      port: 30001
-      database: confeet
-      username: adminuser
-      password: password
-      authentication-database: admin
-
-  datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://145.223.22.73:32033/
-    username: root
-    password: live@Bottomhalf_001
-    database: btc_meets
-
+fierhub:
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJhbnkiLCJuYmYiOjE3NzMzODk1ODMsImV4cCI6MTgwNjUxNzc0OCwiaWF0IjoxNzczMzg5NTgzfQ.DMCaVuGK5XDYe8VZw5GNfROq4YtCtBhArs7Kt4Qo57c_tid13_cid=13
 
 # LiveKit configuration
 livekit:
@@ -30,19 +32,31 @@ livekit:
   api-key: APIJByNUPVKqDS8
   api-secret: mcv0eMRL9uSw3fAna0jkDjxs4ZKBvpAM5WV9k3fOvk4B
 
-#security:
-#  jwt:
-#    key: bottomhalfx12#@-emstum-api-servic-x#20$46@3211
-#    issuer: bottomhalf-services
-#    expiry-time-in-seconds: 30
-#    refresh-token-expiry-time-in-seconds: 604800
-
-fierhub:
-  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJhbnkiLCJuYmYiOjE3NzMzODk1ODMsImV4cCI6MTgwNjUxNzc0OCwiaWF0IjoxNzczMzg5NTgzfQ.DMCaVuGK5XDYe8VZw5GNfROq4YtCtBhArs7Kt4Qo57c_tid13_cid=13
-
-#routes:
-#  authorized:
-#    - /api/auth/authenticateUser
-#    - /api/auth
-#    - /api/conference/token
-#    - /api/meeting/validateMeeting
+# Search settings
+search:
+  thread:
+    core-pool-size: 4
+    max-pool-size: 16
+    queue-capacity: 200
+    keep-alive-seconds: 60
+  timeout-seconds: 5
+  typeahead:
+    timeout-ms: 3000
+  retry:
+    max-attempts: 2
+    delay-ms: 50
+  cache:
+    enabled: true
+    ttl-seconds: 30
+    max-size: 5000
+  use-text-index: true
+  min-search-term-length: 2
+  default-page-size: 20
+  max-page-size: 100
+  circuit-breaker:
+    threshold: 5
+    reset-ms: 30000
+  rate-limit:
+    requests: 30
+    window-ms: 10000
+    entries: 10000

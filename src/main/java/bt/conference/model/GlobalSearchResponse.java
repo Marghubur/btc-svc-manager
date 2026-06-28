@@ -2,7 +2,7 @@ package bt.conference.model;
 
 import bt.conference.entity.Conversation;
 import bt.conference.entity.Message;
-import bt.conference.entity.UserCache;
+import bt.conference.entity.Users;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -41,7 +41,7 @@ public class GlobalSearchResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class GroupedResults {
-        private List<UserCache> users;
+        private List<Users> users;
         private List<Conversation> conversations;
         private List<Message> messages;
         private List<SearchResultItem> files;

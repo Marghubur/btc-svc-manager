@@ -1,7 +1,7 @@
 package bt.conference.dto;
 
 import bt.conference.entity.Conversation;
-import bt.conference.entity.UserCache;
+import bt.conference.entity.Users;
 import lombok.Data;
 
 import java.util.List;
@@ -9,5 +9,5 @@ import java.util.List;
 @Data
 public class SearchResponse {
     private List<Conversation> conversations;
-    private List<UserCache> newUsers;  // Users without existing direct chat
+    private List<Users> newUsers;  // Users without existing direct chat
 }

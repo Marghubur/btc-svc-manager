@@ -44,5 +44,31 @@ livekit:
 #    - /api/conference/token
 #    - /api/meeting/validateMeeting
 
-fierhub:
-  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJhbnkiLCJuYmYiOjE3NzMzODk1ODMsImV4cCI6MTgwNjUxNzc0OCwiaWF0IjoxNzczMzg5NTgzfQ.DMCaVuGK5XDYe8VZw5GNfROq4YtCtBhArs7Kt4Qo57c_tid13_cid=13
+# Search settings
+search:
+  thread:
+    core-pool-size: 4
+    max-pool-size: 16
+    queue-capacity: 200
+    keep-alive-seconds: 60
+  timeout-seconds: 5
+  typeahead:
+    timeout-ms: 3000
+  retry:
+    max-attempts: 2
+    delay-ms: 50
+  cache:
+    enabled: true
+    ttl-seconds: 30
+    max-size: 5000
+  use-text-index: false
+  min-search-term-length: 2
+  default-page-size: 20
+  max-page-size: 100
+  circuit-breaker:
+    threshold: 5
+    reset-ms: 30000
+  rate-limit:
+    requests: 30
+    window-ms: 10000
+    entries: 10000

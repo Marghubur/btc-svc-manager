@@ -1,9 +1,9 @@
 package bt.conference.service;
 
 import bt.conference.dto.*;
-import bt.conference.entity.UserCache;
-import bt.conference.model.UserCacheSearchRequest;
-import bt.conference.repository.UserCacheRepository;
+import bt.conference.entity.Users;
+import bt.conference.model.UsersSearchRequest;
+import bt.conference.repository.UsersRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -21,15 +21,15 @@ import java.util.Optional;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class UserCacheService {
+public class UsersService {
 
-    private final UserCacheRepository userCacheRepository;
+    private final UsersRepository usersRepository;
     private final MongoTemplate mongoTemplate;
 
     /**
      * Get all users with pagination
      */
-    public PagedResponse<UserCache> getAllUsers(int pageNumber, int pageSize) {
+    public PagedResponse<Users> getAllUsers(int pageNumber, int pageSize) {
 
         Pageable pageable = PageRequest.of(
                 pageNumber - 1,
@@ -37,7 +37,7 @@ public class UserCacheService {
                 Sort.by(Sort.Direction.ASC, "username")
         );
 
-        Page<UserCache> page = userCacheRepository.findAll(pageable);
+        Page<Users> page = usersRepository.findAll(pageable);
 
         return buildResponse(page, pageNumber, pageSize);
     }
@@ -45,7 +45,7 @@ public class UserCacheService {
     /**
      * Search users by username, email, firstName, lastName
      */
-    public PagedResponse<UserCache> searchUsers(UserCacheSearchRequest request) {
+    public PagedResponse<Users> searchUsers(UsersSearchRequest request) {
 
         String searchTerm = request.getSearchTerm();
         int pageNumber = request.getPageNumber();
@@ -67,15 +67,15 @@ public class UserCacheService {
             Criteria searchCriteria = new Criteria().orOperator(
                     Criteria.where("username").regex(pattern, "i"),
                     Criteria.where("email").regex(pattern, "i"),
-                    Criteria.where("first_name").regex(pattern, "i"),
-                    Criteria.where("last_name").regex(pattern, "i")
+                    Criteria.where("firstName").regex(pattern, "i"),
+                    Criteria.where("lastName").regex(pattern, "i")
             );
 
             query.addCriteria(searchCriteria);
         }
 
         // Count total
-        long totalRecords = mongoTemplate.count(query, UserCache.class);
+        long totalRecords = mongoTemplate.count(query, Users.class);
 
         log.info("Search term: '{}', Total records: {}", searchTerm, totalRecords);
 
@@ -85,7 +85,7 @@ public class UserCacheService {
         query.limit(pageSize);
 
         // Execute
-        List<UserCache> users = mongoTemplate.find(query, UserCache.class);
+        List<Users> users = mongoTemplate.find(query, Users.class);
 
         int totalPages = (int) Math.ceil((double) totalRecords / pageSize);
 
@@ -100,12 +100,12 @@ public class UserCacheService {
     /**
      * Search users with simple parameters
      */
-    public PagedResponse<UserCache> searchUsers(
+    public PagedResponse<Users> searchUsers(
             String searchTerm,
             int pageNumber,
             int pageSize
     ) {
-        UserCacheSearchRequest request = new UserCacheSearchRequest();
+        UsersSearchRequest request = new UsersSearchRequest();
         request.setSearchTerm(searchTerm);
         request.setPageNumber(pageNumber);
         request.setPageSize(pageSize);
@@ -116,7 +116,7 @@ public class UserCacheService {
     /**
      * Search only active users
      */
-    public PagedResponse<UserCache> searchActiveUsers(
+    public PagedResponse<Users> searchActiveUsers(
             String searchTerm,
             int pageNumber,
             int pageSize
@@ -126,7 +126,7 @@ public class UserCacheService {
         Query query = new Query();
 
         // Only active users
-        query.addCriteria(Criteria.where("is_active").is(true));
+        query.addCriteria(Criteria.where("status").is("ACTIVE"));
 
         // Add search criteria
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
@@ -135,20 +135,20 @@ public class UserCacheService {
             Criteria searchCriteria = new Criteria().orOperator(
                     Criteria.where("username").regex(pattern, "i"),
                     Criteria.where("email").regex(pattern, "i"),
-                    Criteria.where("first_name").regex(pattern, "i"),
-                    Criteria.where("last_name").regex(pattern, "i")
+                    Criteria.where("firstName").regex(pattern, "i"),
+                    Criteria.where("lastName").regex(pattern, "i")
             );
 
             query.addCriteria(searchCriteria);
         }
 
-        long totalRecords = mongoTemplate.count(query, UserCache.class);
+        long totalRecords = mongoTemplate.count(query, Users.class);
 
         query.with(Sort.by(Sort.Direction.ASC, "username"));
         query.skip(skip);
         query.limit(pageSize);
 
-        List<UserCache> users = mongoTemplate.find(query, UserCache.class);
+        List<Users> users = mongoTemplate.find(query, Users.class);
 
         int totalPages = (int) Math.ceil((double) totalRecords / pageSize);
 
@@ -163,7 +163,7 @@ public class UserCacheService {
     /**
      * Search users excluding a specific user (useful for chat)
      */
-    public PagedResponse<UserCache> searchUsersExcluding(
+    public PagedResponse<Users> searchUsersExcluding(
             String excludeUserId,
             String searchTerm,
             int pageNumber,
@@ -174,10 +174,10 @@ public class UserCacheService {
         Query query = new Query();
 
         // Exclude specific user
-        query.addCriteria(Criteria.where("user_id").ne(excludeUserId));
+        query.addCriteria(Criteria.where("id").ne(excludeUserId));
 
         // Only active users
-        query.addCriteria(Criteria.where("is_active").is(true));
+        query.addCriteria(Criteria.where("status").is("ACTIVE"));
 
         // Add search criteria
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
@@ -186,20 +186,20 @@ public class UserCacheService {
             Criteria searchCriteria = new Criteria().orOperator(
                     Criteria.where("username").regex(pattern, "i"),
                     Criteria.where("email").regex(pattern, "i"),
-                    Criteria.where("first_name").regex(pattern, "i"),
-                    Criteria.where("last_name").regex(pattern, "i")
+                    Criteria.where("firstName").regex(pattern, "i"),
+                    Criteria.where("lastName").regex(pattern, "i")
             );
 
             query.addCriteria(searchCriteria);
         }
 
-        long totalRecords = mongoTemplate.count(query, UserCache.class);
+        long totalRecords = mongoTemplate.count(query, Users.class);
 
         query.with(Sort.by(Sort.Direction.ASC, "username"));
         query.skip(skip);
         query.limit(pageSize);
 
-        List<UserCache> users = mongoTemplate.find(query, UserCache.class);
+        List<Users> users = mongoTemplate.find(query, Users.class);
 
         int totalPages = (int) Math.ceil((double) totalRecords / pageSize);
 
@@ -214,28 +214,28 @@ public class UserCacheService {
     /**
      * Get user by ID
      */
-    public Optional<UserCache> getUserById(String id) {
-        return userCacheRepository.findById(id);
+    public Optional<Users> getUserById(String id) {
+        return usersRepository.findById(id);
     }
 
     /**
      * Get user by userId
      */
-    public Optional<UserCache> getUserByUserId(String odUserId) {
-        return userCacheRepository.findByUserId(odUserId);
+    public Optional<Users> getUserByUserId(String odUserId) {
+        return usersRepository.findById(odUserId);
     }
 
     /**
      * Get user by email
      */
-    public Optional<UserCache> getUserByEmail(String email) {
-        return userCacheRepository.findByEmail(email);
+    public Optional<Users> getUserByEmail(String email) {
+        return usersRepository.findByEmail(email);
     }
 
     /**
      * Helper method to build PagedResponse from Page
      */
-    private PagedResponse<UserCache> buildResponse(Page<UserCache> page, int pageNumber, int pageSize) {
+    private PagedResponse<Users> buildResponse(Page<Users> page, int pageNumber, int pageSize) {
         return PagedResponse.of(
                 page.getContent(),
                 page.getTotalPages(),

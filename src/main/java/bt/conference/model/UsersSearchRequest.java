@@ -3,7 +3,7 @@ package bt.conference.model;
 import lombok.Data;
 
 @Data
-public class UserCacheSearchRequest {
+public class UsersSearchRequest {
     private String searchTerm;
     private int pageNumber = 1;
     private int pageSize = 10;

@@ -1,30 +1,30 @@
 package bt.conference.controller;
 
 import bt.conference.dto.PagedResponse;
-import bt.conference.entity.UserCache;
-import bt.conference.model.UserCacheSearchRequest;
-import bt.conference.service.UserCacheService;
+import bt.conference.entity.Users;
+import bt.conference.model.UsersSearchRequest;
+import bt.conference.service.UsersService;
 import com.fierhub.model.BaseResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/user-cache/")
+@RequestMapping("/api/users/")
 @RequiredArgsConstructor
-public class UserCacheController {
+public class UsersController {
 
-    private final UserCacheService userCacheService;
+    private final UsersService usersService;
 
     /**
      * Get all users with pagination
-     * GET /api/users?pageNumber=1&pageSize=10
+     * GET /api/users/get-users?pageNumber=1&pageSize=10
      */
     @GetMapping("get-users")
     public BaseResponse getAllUsers(
             @RequestParam(defaultValue = "1") int pageNumber,
             @RequestParam(defaultValue = "10") int pageSize
     ) {
-        PagedResponse<UserCache> response = userCacheService.getAllUsers(pageNumber, pageSize);
+        PagedResponse<Users> response = usersService.getAllUsers(pageNumber, pageSize);
         return BaseResponse.Ok(response);
     }
 
@@ -38,7 +38,7 @@ public class UserCacheController {
             @RequestParam(defaultValue = "1") int pageNumber,
             @RequestParam(defaultValue = "10") int pageSize
     ) {
-        PagedResponse<UserCache> response = userCacheService.searchUsers(term, pageNumber, pageSize);
+        PagedResponse<Users> response = usersService.searchUsers(term, pageNumber, pageSize);
         return BaseResponse.Ok(response);
     }
 
@@ -48,9 +48,9 @@ public class UserCacheController {
      */
     @PostMapping("search")
     public BaseResponse searchUsersAdvanced(
-            @RequestBody UserCacheSearchRequest request
+            @RequestBody UsersSearchRequest request
     ) {
-        PagedResponse<UserCache> response = userCacheService.searchUsers(request);
+        PagedResponse<Users> response = usersService.searchUsers(request);
         return BaseResponse.Ok(response);
     }
 
@@ -64,7 +64,7 @@ public class UserCacheController {
             @RequestParam(defaultValue = "1") int pageNumber,
             @RequestParam(defaultValue = "10") int pageSize
     ) {
-        PagedResponse<UserCache> response = userCacheService.searchActiveUsers(term, pageNumber, pageSize);
+        PagedResponse<Users> response = usersService.searchActiveUsers(term, pageNumber, pageSize);
         return BaseResponse.Ok(response);
     }
 
@@ -79,7 +79,7 @@ public class UserCacheController {
             @RequestParam(defaultValue = "1") int pageNumber,
             @RequestParam(defaultValue = "10") int pageSize
     ) {
-        PagedResponse<UserCache> response = userCacheService.searchUsersExcluding(
+        PagedResponse<Users> response = usersService.searchUsersExcluding(
                 userId, term, pageNumber, pageSize
         );
         return BaseResponse.Ok(response);
@@ -91,7 +91,7 @@ public class UserCacheController {
      */
     @GetMapping("/{id}")
     public BaseResponse getUserById(@PathVariable String id) {
-        return userCacheService.getUserById(id)
+        return usersService.getUserById(id)
                 .map(BaseResponse::Ok)
                 .orElse(BaseResponse.RaiseError("User not found", new Exception("User not found")));
     }
@@ -102,7 +102,7 @@ public class UserCacheController {
      */
     @GetMapping("/by-user-id/{userId}")
     public BaseResponse getUserByUserId(@PathVariable String userId) {
-        return userCacheService.getUserByUserId(userId)
+        return usersService.getUserByUserId(userId)
                 .map(BaseResponse::Ok)
                 .orElse(BaseResponse.RaiseError("User not found", new Exception("User not found")));
     }

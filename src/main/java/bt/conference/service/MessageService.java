@@ -3,9 +3,9 @@ package bt.conference.service;
 import bt.conference.dto.SendMessage;
 import bt.conference.entity.Conversation.LastMessage;
 import bt.conference.entity.Message;
-import bt.conference.entity.UserCache;
+import bt.conference.entity.Users;
 import bt.conference.repository.MessageRepository;
-import bt.conference.repository.UserCacheRepository;
+import bt.conference.repository.UsersRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -16,7 +16,7 @@ import java.time.Instant;
 public class MessageService {
 
     private final MessageRepository messageRepository;
-    private final UserCacheRepository userCacheRepository;
+    private final UsersRepository usersRepository;
     private final ConversationService conversationService;
 
     /**
@@ -24,7 +24,7 @@ public class MessageService {
      */
     public Message sendMessage(String senderId, SendMessage dto) {
         // Get sender info
-        UserCache senderUser = userCacheRepository.findByUserId(senderId)
+        Users senderUser = usersRepository.findById(senderId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         // Create message
@@ -34,8 +34,8 @@ public class MessageService {
         message.setType(dto.getMessageType() != null ? dto.getMessageType() : "text");
         message.setStatus(2);
         message.setCreatedAt(Instant.now());
-        message.setSenderId(senderUser.getUserId());
-        message.setAvatar(senderUser.getAvatar());
+        message.setSenderId(senderUser.getId());
+        message.setAvatar(senderUser.getAvatarUrl());
 
         Message savedMessage = messageRepository.save(message);
 

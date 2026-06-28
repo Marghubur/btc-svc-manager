@@ -1,7 +1,8 @@
 package bt.conference.repository;
 
 import bt.conference.entity.Conversation;
-import bt.conference.entity.UserCache;
+import bt.conference.entity.ConversationMembers;
+import bt.conference.entity.Users;
 import bt.conference.model.SearchResultItem;
 import bt.conference.service.GlobalSearchException;
 import bt.conference.service.GlobalSearchException.ErrorType;
@@ -72,7 +73,7 @@ public class GlobalSearchRepository {
     @Value("${search.cache.ttl-seconds:30}")
     private int cacheTtlSeconds;
 
-    @Value("${search.use-text-index:false}")
+    @Value("${search.use-text-index:true}")
     private boolean useTextIndex;
 
     // Thread pool and state
@@ -194,16 +195,16 @@ public class GlobalSearchRepository {
         logger.info("Run these commands in MongoDB shell:");
         logger.info("");
         logger.info("// Text indexes for full-text search (RECOMMENDED)");
-        logger.info("db.user_cache.createIndex({");
-        logger.info("  first_name: 'text', last_name: 'text', email: 'text', username: 'text'");
-        logger.info("}, { name: 'user_text_search', weights: { first_name: 10, last_name: 10, username: 5, email: 3 }});");
+        logger.info("db.users.createIndex({");
+        logger.info("  firstName: 'text', lastName: 'text', email: 'text', username: 'text'");
+        logger.info("}, { name: 'user_text_search', weights: { firstName: 10, lastName: 10, username: 5, email: 3 }});");
         logger.info("");
         logger.info("db.conversation.createIndex({");
         logger.info("  conversation_name: 'text', 'participants.username': 'text', 'participants.email': 'text'");
         logger.info("}, { name: 'conversation_text_search' });");
         logger.info("");
         logger.info("// Compound indexes for filtering");
-        logger.info("db.user_cache.createIndex({ is_active: 1, updated_at: -1 });");
+        logger.info("db.users.createIndex({ status: 1, updatedAt: -1 });");
         logger.info("db.conversation.createIndex({ is_active: 1, 'participant_ids': 1, updated_at: -1 });");
         logger.info("================================================================");
     }
@@ -334,7 +335,7 @@ public class GlobalSearchRepository {
      * Used when user presses Enter or clicks "See all results"
      */
     public SearchResultItem globalSearch(
-            String searchTerm, String fullSearch, int skip, int limit) {
+            String searchTerm, String userId, int skip, int limit) {
 
         validateAndPrepare(searchTerm, userSession.getUserId());
 
@@ -346,7 +347,37 @@ public class GlobalSearchRepository {
 
         try {
             SearchResultItem results = executeParallelSearch(
-                    searchTerm, userSession.getUserId(), skip, limit, fullSearch, false);
+                    searchTerm, userId != null ? userId : userSession.getUserId(), skip, limit, "y", false);
+            putInCache(cacheKey, results);
+            return results;
+        } finally {
+            activeSearches.decrementAndGet();
+        }
+    }
+
+    /**
+     * Optimized search only in users documents based on firstName and lastName
+     * with pagination, sortBy, pageIndex, and pageSize.
+     */
+    public SearchResultItem globalSearch(
+            String searchTerm, int pageIndex, int pageSize, String sortBy, String sortDirection) {
+
+        validateAndPrepare(searchTerm, userSession.getUserId());
+
+        // Cache key specific to user search with pagination/sorting parameters
+        String cacheKey = String.format("users-only:%s:%d:%d:%s:%s",
+                searchTerm.toLowerCase(), pageIndex, pageSize,
+                sortBy != null ? sortBy.toLowerCase() : "default",
+                sortDirection != null ? sortDirection.toLowerCase() : "default");
+
+        SearchResultItem cached = getFromCache(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+
+        try {
+            SearchResultItem results = executeParallelSearch(
+                    searchTerm, pageIndex, pageSize, sortBy, sortDirection);
             putInCache(cacheKey, results);
             return results;
         } finally {
@@ -376,22 +407,22 @@ public class GlobalSearchRepository {
 
         int timeoutMs = isTypeAhead ? typeaheadTimeoutMs : searchTimeoutSeconds * 1000;
 
-        // Launch parallel searches
-        CompletableFuture<List<UserCache>> usersFuture = CompletableFuture
-                .supplyAsync(() -> searchUsers(searchTerm, fullSearch.equals("y"), skip, limit), searchExecutor)
-                .exceptionally(ex -> {
-                    logger.warn("User search failed: {}", ex.getMessage());
-                    return Collections.emptyList();
-                });
-
-        CompletableFuture<List<Conversation>> conversationsFuture = CompletableFuture
-                .supplyAsync(() -> searchConversations(searchTerm, userId, skip, limit), searchExecutor)
-                .exceptionally(ex -> {
-                    logger.warn("Conversation search failed: {}", ex.getMessage());
-                    return Collections.emptyList();
-                });
-
         try {
+            // Launch parallel searches
+            CompletableFuture<List<Users>> usersFuture = CompletableFuture
+                    .supplyAsync(() -> searchUsers(searchTerm, fullSearch.equals("y"), skip, limit), searchExecutor)
+                    .exceptionally(ex -> {
+                        logger.warn("User search failed: {}", ex.getMessage());
+                        return Collections.emptyList();
+                    });
+
+            CompletableFuture<List<Conversation>> conversationsFuture = CompletableFuture
+                    .supplyAsync(() -> searchConversations(searchTerm, userId, skip, limit), searchExecutor)
+                    .exceptionally(ex -> {
+                        logger.warn("Conversation search failed: {}", ex.getMessage());
+                        return Collections.emptyList();
+                    });
+
             CompletableFuture.allOf(usersFuture, conversationsFuture)
                     .get(timeoutMs, TimeUnit.MILLISECONDS);
 
@@ -399,7 +430,7 @@ public class GlobalSearchRepository {
 
             return SearchResultItem.builder()
                     .conversation(conversationsFuture.join())
-                    .userCache(usersFuture.join())
+                    .users(usersFuture.join())
                     .build();
         } catch (TimeoutException e) {
             logger.warn("Search timeout after {}ms for term: {}", timeoutMs, searchTerm);
@@ -407,7 +438,7 @@ public class GlobalSearchRepository {
 
             return SearchResultItem.builder()
                     .conversation(Collections.emptyList())
-                    .userCache(Collections.emptyList())
+                    .users(Collections.emptyList())
                     .build();
 
         } catch (InterruptedException e) {
@@ -418,6 +449,119 @@ public class GlobalSearchRepository {
             recordFailure();
             throw new GlobalSearchException(ErrorType.EXECUTION_FAILED, searchTerm, e.getCause());
         }
+    }
+
+    /**
+     * Highly optimized parallel search on users documents based on firstName and lastName.
+     * Executes the paginated data query and the total count query concurrently
+     * to maximize throughput and minimize latency on millions of records.
+     */
+    private SearchResultItem executeParallelSearch(
+            String searchTerm, int pageIndex, int pageSize, String sortBy, String sortDirection) {
+
+        int timeoutMs = searchTimeoutSeconds * 1000;
+        String term = searchTerm.trim();
+        int limit = pageSize > 0 ? pageSize : 10;
+        int skip = pageIndex > 0 ? pageIndex * limit : 0;
+
+        // Build base queries
+        Query dataQuery = buildUserSearchQuery(term);
+        Query countQuery = buildUserSearchQuery(term);
+
+        // Optimize performance: use projection to avoid loading unnecessary/large fields
+        // and reduce network payload from MongoDB.
+        dataQuery.fields()
+                .include("id")
+                .include("firstName")
+                .include("lastName")
+                .include("username")
+                .include("email")
+                .include("avatarUrl")
+                .include("status")
+                .include("updatedAt");
+
+        // Apply Sorting (ensure corresponding index exists in DB, e.g. { firstName: 1 } or { updatedAt: -1 })
+        String sortField = (sortBy != null && !sortBy.trim().isEmpty()) ? sortBy : "updatedAt";
+        Sort.Direction direction = "DESC".equalsIgnoreCase(sortDirection) ? Sort.Direction.DESC : Sort.Direction.ASC;
+        dataQuery.with(Sort.by(direction, sortField));
+
+        // Apply Pagination
+        dataQuery.skip(skip).limit(limit);
+
+        // Execute Find (data) and Count queries in parallel using CompletableFuture
+        CompletableFuture<List<Users>> dataFuture = CompletableFuture.supplyAsync(() -> {
+            logger.debug("Executing parallel user search data query for: {}", term);
+            return mongoTemplate.find(dataQuery, Users.class, "users");
+        }, searchExecutor).exceptionally(ex -> {
+            logger.error("Parallel user data query failed for term: " + term, ex);
+            return Collections.emptyList();
+        });
+
+        CompletableFuture<Long> countFuture = CompletableFuture.supplyAsync(() -> {
+            logger.debug("Executing parallel user count query for: {}", term);
+            return mongoTemplate.count(countQuery, Users.class, "users");
+        }, searchExecutor).exceptionally(ex -> {
+            logger.error("Parallel user count query failed for term: " + term, ex);
+            return 0L;
+        });
+
+        try {
+            // Wait for both futures to complete with a strict timeout
+            CompletableFuture.allOf(dataFuture, countFuture)
+                    .get(timeoutMs, TimeUnit.MILLISECONDS);
+
+            List<Users> users = dataFuture.join();
+            long totalCount = countFuture.join();
+
+            consecutiveFailures.set(0); // Reset circuit breaker on success
+
+            return SearchResultItem.builder()
+                    .users(users)
+                    .conversation(Collections.emptyList())
+                    .metadata(SearchResultItem.SearchMetadata.builder()
+                            .searchTerm(term)
+                            .totalCount(totalCount)
+                            .page(pageIndex)
+                            .limit(limit)
+                            .build())
+                    .build();
+
+        } catch (TimeoutException e) {
+            logger.warn("Parallel user search timed out after {}ms for term: {}", timeoutMs, term);
+            // Gracefully return empty/partial results if timed out to keep the system responsive
+            return SearchResultItem.builder()
+                    .users(Collections.emptyList())
+                    .conversation(Collections.emptyList())
+                    .metadata(SearchResultItem.SearchMetadata.builder()
+                            .searchTerm(term)
+                            .totalCount(0)
+                            .page(pageIndex)
+                            .limit(limit)
+                            .build())
+                    .build();
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new GlobalSearchException(ErrorType.THREAD_INTERRUPTED, term, e);
+
+        } catch (ExecutionException e) {
+            recordFailure();
+            throw new GlobalSearchException(ErrorType.EXECUTION_FAILED, term, e.getCause());
+        }
+    }
+
+    private Query buildUserSearchQuery(String searchTerm) {
+        Query query = new Query();
+        query.addCriteria(Criteria.where("status").is("ACTIVE"));
+
+        if (searchTerm != null && !searchTerm.trim().isEmpty()) {
+            Pattern pattern = Pattern.compile(escapeRegex(searchTerm.trim()), Pattern.CASE_INSENSITIVE);
+            query.addCriteria(new Criteria().orOperator(
+                    Criteria.where("firstName").regex(pattern),
+                    Criteria.where("lastName").regex(pattern)
+            ));
+        }
+        return query;
     }
 
     private List<SearchResultItem> getCompletedResult(CompletableFuture<List<SearchResultItem>> future) {
@@ -438,43 +582,25 @@ public class GlobalSearchRepository {
 
     // ==================== User Search ====================
 
-    private List<UserCache> searchUsers(String searchTerm, boolean required, int skip, int limit) {
-        if (!required) {
-            return new ArrayList<>();
-        }
-
+    private List<Users> searchUsers(String searchTerm, boolean required, int skip, int limit) {
         try {
-            Query query;
+            Query query = new Query();
+            query.addCriteria(Criteria.where("status").is("ACTIVE"));
 
-            if (useTextIndex) {
-                // Use MongoDB text search (requires text index)
-                TextCriteria textCriteria = TextCriteria.forDefaultLanguage()
-                        .matchingPhrase(searchTerm);
-                query = TextQuery.queryText(textCriteria)
-                        .sortByScore();
-            } else {
-                // Fallback to regex (slower but works without index)
-                Pattern pattern = Pattern.compile("^" + Pattern.quote(searchTerm), Pattern.CASE_INSENSITIVE);
-                query = new Query(new Criteria().andOperator(
-                        Criteria.where("is_active").is(true),
-                        new Criteria().orOperator(
-                                Criteria.where("first_name").regex(pattern),
-                                Criteria.where("last_name").regex(pattern),
-                                Criteria.where("email").regex(pattern),
-                                Criteria.where("username").regex(pattern)
-                        )
+            if (searchTerm != null && !searchTerm.trim().isEmpty()) {
+                Pattern pattern = Pattern.compile(escapeRegex(searchTerm.trim()), Pattern.CASE_INSENSITIVE);
+                query.addCriteria(new Criteria().orOperator(
+                        Criteria.where("firstName").regex(pattern),
+                        Criteria.where("lastName").regex(pattern),
+                        Criteria.where("email").regex(pattern),
+                        Criteria.where("username").regex(pattern)
                 ));
             }
 
-            query.addCriteria(Criteria.where("is_active").is(true));
             query.skip(skip).limit(limit);
-            query.with(Sort.by(Sort.Direction.DESC, "updated_at"));
+            query.with(Sort.by(Sort.Direction.DESC, "updatedAt"));
 
-            return mongoTemplate.find(query, UserCache.class, "user_cache");
-
-            //return docs.stream()
-            //        .map(doc -> mapToUserResult(doc, searchTerm))
-            //        .collect(Collectors.toList());
+            return mongoTemplate.find(query, Users.class, "users");
         } catch (MongoTimeoutException e) {
             throw new GlobalSearchException(ErrorType.TIMEOUT, searchTerm, e);
         } catch (MongoException e) {
@@ -482,9 +608,9 @@ public class GlobalSearchRepository {
         }
     }
 
-    private UserCache mapToUserResult(Document doc, String searchTerm) {
-        String firstName = doc.getString("first_name");
-        String lastName = doc.getString("last_name");
+    private Users mapToUserResult(Document doc, String searchTerm) {
+        String firstName = doc.getString("firstName");
+        String lastName = doc.getString("lastName");
         String fullName = (firstName != null ? firstName : "") +
                 (lastName != null ? " " + lastName : "");
 
@@ -498,17 +624,17 @@ public class GlobalSearchRepository {
                         "email", doc.getString("email") != null ? doc.getString("email") : "",
                         "username", doc.getString("username") != null ? doc.getString("username") : ""));
 
-        return UserCache.builder()
+        return Users.builder()
                 //.type(SearchResultItem.ResultType.USER)
-                //.id(doc.getString("user_id"))
+                //.id(doc.getString("id"))
                 //.title(fullName.trim())
                 //.subtitle(doc.getString("email"))
-                //.avatar(doc.getString("avatar"))
+                //.avatar(doc.getString("avatarUrl"))
                 //.status(doc.getString("status"))
                 //.score(score)
                 //.highlights(highlights)
-                //.lastActivity(doc.getDate("updated_at") != null
-                //       ? doc.getDate("updated_at").toInstant() : null)
+                //.lastActivity(doc.getDate("updatedAt") != null
+                //       ? doc.getDate("updatedAt").toInstant() : null)
                 //.metadata(Map.of("username", doc.getString("username") != null ? doc.getString("username") : ""))
                 .build();
     }
@@ -517,32 +643,60 @@ public class GlobalSearchRepository {
 
     private List<Conversation> searchConversations(String searchTerm, String userId, int skip, int limit) {
         try {
-            Query query;
-
-            if (useTextIndex) {
-                TextCriteria textCriteria = TextCriteria.forDefaultLanguage()
-                        .matchingPhrase(searchTerm);
-                query = TextQuery.queryText(textCriteria).sortByScore();
-            } else {
-                Pattern pattern = Pattern.compile("^" + Pattern.quote(searchTerm), Pattern.CASE_INSENSITIVE);
-                query = new Query(new Criteria().andOperator(
-                        Criteria.where("is_active").is(true),
-                        new Criteria().orOperator(
-                                Criteria.where("conversation_name").regex(pattern),
-                                Criteria.where("participants.username").regex(pattern),
-                                Criteria.where("participants.email").regex(pattern)
-                        )
-                ));
-            }
-
-            // SECURITY: Only show conversations user is part of
+            // Find all conversation IDs user is part of
+            List<String> userConversationIds = new ArrayList<>();
             if (userId != null) {
-                query.addCriteria(Criteria.where("participant_ids").in(userId));
+                List<ConversationMembers> memberships = mongoTemplate.find(
+                        new Query(Criteria.where("userId").is(userId)),
+                        ConversationMembers.class
+                );
+                userConversationIds = memberships.stream()
+                        .map(ConversationMembers::getConversationId)
+                        .toList();
+                if (userConversationIds.isEmpty()) {
+                    return new ArrayList<>();
+                }
             }
 
-            query.addCriteria(Criteria.where("is_active").is(true));
+            Query query = new Query();
+            query.addCriteria(Criteria.where("isDeleted").is(false));
+            if (userId != null) {
+                query.addCriteria(Criteria.where("id").in(userConversationIds));
+            }
+
+            if (searchTerm != null && !searchTerm.trim().isEmpty()) {
+                Pattern pattern = Pattern.compile("^" + escapeRegex(searchTerm.trim()), Pattern.CASE_INSENSITIVE);
+
+                // Find users matching search term directly
+                Query userQuery = new Query(new Criteria().orOperator(
+                        Criteria.where("username").is(searchTerm.trim()),
+                        Criteria.where("email").is(searchTerm.trim()),
+                        Criteria.where("firstName").is(searchTerm.trim()),
+                        Criteria.where("lastName").is(searchTerm.trim())
+                ));
+                List<Users> matchingUsers = mongoTemplate.find(userQuery, Users.class);
+                List<String> matchingUserIds = matchingUsers.stream().map(Users::getId).toList();
+
+                // Find memberships for matching users
+                Query membershipQuery = new Query(Criteria.where("userId").in(matchingUserIds));
+                if (userId != null) {
+                    membershipQuery.addCriteria(Criteria.where("conversationId").in(userConversationIds));
+                }
+                List<ConversationMembers> matchingMemberships = mongoTemplate.find(membershipQuery, ConversationMembers.class);
+                List<String> matchingConvIds = matchingMemberships.stream()
+                        .map(ConversationMembers::getConversationId)
+                        .toList();
+
+                Criteria searchCriteria = new Criteria().orOperator(
+                        Criteria.where("title").regex(pattern),
+                        Criteria.where("description").regex(pattern),
+                        Criteria.where("id").in(matchingConvIds)
+                );
+                query.addCriteria(searchCriteria);
+            }
+
             query.skip(skip).limit(limit);
-            query.with(Sort.by(Sort.Direction.DESC, "updated_at"));
+            query.with(Sort.by(Sort.Direction.DESC, "lastMessageAt"));
 
             return mongoTemplate.find(query, Conversation.class, "conversations");
         } catch (MongoTimeoutException e) {
@@ -630,6 +784,13 @@ public class GlobalSearchRepository {
         }
 
         return highlights.isEmpty() ? null : highlights;
+    }
+
+    private String escapeRegex(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.replaceAll("([\\\\\\.\\*\\+\\?\\^\\$\\{\\}\\(\\)\\|\\[\\]])", "\\\\$1");
     }
 
     // ==================== Helper Classes ====================

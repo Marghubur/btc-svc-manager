@@ -3,6 +3,7 @@ package bt.conference.entity;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -12,42 +13,34 @@ import java.time.Instant;
 @Data
 @Builder
 @AllArgsConstructor
-@Document(collection = "user_cache")
-public class UserCache {
+@NoArgsConstructor
+@Document(collection = "users")
+public class Users {
 
     @Id
     private String id;
 
-    @Field("user_id")
-    private String userId;
+    @Field("avatarUrl")
+    private String avatarUrl;
 
-    @Field("username")
-    private String username;
+    @Field("createdAt")
+    private Instant createdAt;
 
     @Field("email")
     private String email;
 
-    @Field("first_name")
+    @Field("firstName")
     private String firstName;
 
-    @Field("last_name")
+    @Field("lastName")
     private String lastName;
-
-    @Field("avatar")
-    private String avatar;
 
     @Field("status")
     private String status;
 
-    @Field("is_active")
-    private Boolean isActive;
-
-    @Field("created_at")
-    private Instant createdAt;
-
-    @Field("updated_at")
+    @Field("updatedAt")
     private Instant updatedAt;
 
-    @Field("synced_at")
-    private Instant syncedAt;
+    @Field("username")
+    private String username;
 }
