@@ -2,6 +2,7 @@ package bt.conference.controller;
 
 import bt.conference.dto.*;
 import bt.conference.entity.Conversation;
+import bt.conference.model.CreateGroupRequest;
 import bt.conference.service.ConversationService;
 import com.fierhub.model.BaseResponse;
 import lombok.RequiredArgsConstructor;
@@ -66,7 +67,7 @@ public class ConversationController {
      * GET /api/conversations/search?term=john&pageNumber=1&pageSize=10
      */
     @PutMapping("create/{id}/{recipientId}")
-    public BaseResponse createChannel(@PathVariable("id") String id, @RequestBody Conversation conversation) {
+    public BaseResponse createChannel(@PathVariable("id") String id, @RequestBody Conversation conversation) throws Exception {
         Conversation response = conversationService.createSingleChannelService(id, conversation);
         return BaseResponse.Ok(response);
     }
@@ -76,8 +77,8 @@ public class ConversationController {
      * POST /api/conversations/search?term=john&pageNumber=1&pageSize=10
      */
     @PostMapping("build-group/{id}")
-    public BaseResponse buildGroupChannel(@PathVariable("id") String id, @RequestBody Conversation conversation) {
-        Conversation response = conversationService.createGroupChannelService(id, conversation);
+    public BaseResponse buildGroupChannel(@PathVariable("id") String id, @RequestBody CreateGroupRequest groupRequest) throws Exception {
+        Conversation response = conversationService.createGroupChannelService(id, groupRequest);
         return BaseResponse.Ok(response);
     }
 

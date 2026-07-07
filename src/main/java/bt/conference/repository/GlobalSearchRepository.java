@@ -1,7 +1,6 @@
 package bt.conference.repository;
 
 import bt.conference.entity.Conversation;
-import bt.conference.entity.ConversationMembers;
 import bt.conference.entity.Users;
 import bt.conference.model.SearchResultItem;
 import bt.conference.service.GlobalSearchException;
@@ -9,7 +8,8 @@ import bt.conference.service.GlobalSearchException.ErrorType;
 import com.fierhub.model.UserSession;
 import com.mongodb.MongoException;
 import com.mongodb.MongoTimeoutException;
-
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,12 +19,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.TextCriteria;
-import org.springframework.data.mongodb.core.query.TextQuery;
 import org.springframework.stereotype.Repository;
-
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -146,8 +141,7 @@ public class GlobalSearchRepository {
                     corePoolSize, maxPoolSize,
                     keepAliveSeconds, TimeUnit.SECONDS,
                     new LinkedBlockingQueue<>(queueCapacity),
-                    threadFactory, rejectionHandler
-            );
+                    threadFactory, rejectionHandler);
             searchExecutor.allowCoreThreadTimeOut(true);
             searchExecutor.prestartAllCoreThreads();
 
@@ -197,7 +191,8 @@ public class GlobalSearchRepository {
         logger.info("// Text indexes for full-text search (RECOMMENDED)");
         logger.info("db.users.createIndex({");
         logger.info("  firstName: 'text', lastName: 'text', email: 'text', username: 'text'");
-        logger.info("}, { name: 'user_text_search', weights: { firstName: 10, lastName: 10, username: 5, email: 3 }});");
+        logger.info(
+                "}, { name: 'user_text_search', weights: { firstName: 10, lastName: 10, username: 5, email: 3 }});");
         logger.info("");
         logger.info("db.conversation.createIndex({");
         logger.info("  conversation_name: 'text', 'participants.username': 'text', 'participants.email': 'text'");
@@ -232,7 +227,8 @@ public class GlobalSearchRepository {
         metrics.put("totalSearches", totalSearches.get());
         metrics.put("cacheHits", cacheHits.get());
         metrics.put("cacheHitRate", totalSearches.get() > 0
-                ? (double) cacheHits.get() / totalSearches.get() * 100 : 0);
+                ? (double) cacheHits.get() / totalSearches.get() * 100
+                : 0);
         metrics.put("failedSearches", failedSearches.get());
         metrics.put("activeSearches", activeSearches.get());
         metrics.put("cacheSize", searchCache.size());
@@ -249,7 +245,8 @@ public class GlobalSearchRepository {
     // ==================== Rate Limiting ====================
 
     private void checkRateLimit(String userId) {
-        if (userId == null) return;
+        if (userId == null)
+            return;
 
         rateLimiter.compute(userId, (key, entry) -> {
             long now = System.currentTimeMillis();
@@ -266,8 +263,7 @@ public class GlobalSearchRepository {
         // Cleanup old entries periodically
         if (rateLimiter.size() > 10000) {
             long now = System.currentTimeMillis();
-            rateLimiter.entrySet().removeIf(e ->
-                    now - e.getValue().windowStart > RATE_LIMIT_WINDOW_MS * 2);
+            rateLimiter.entrySet().removeIf(e -> now - e.getValue().windowStart > RATE_LIMIT_WINDOW_MS * 2);
         }
     }
 
@@ -278,7 +274,8 @@ public class GlobalSearchRepository {
     }
 
     private SearchResultItem getFromCache(String cacheKey) {
-        if (!cacheEnabled) return null;
+        if (!cacheEnabled)
+            return null;
 
         CacheEntry entry = searchCache.get(cacheKey);
         if (entry != null && !entry.isExpired(cacheTtlSeconds)) {
@@ -290,7 +287,8 @@ public class GlobalSearchRepository {
     }
 
     private void putInCache(String cacheKey, SearchResultItem results) {
-        if (!cacheEnabled) return;
+        if (!cacheEnabled)
+            return;
 
         searchCache.put(cacheKey, new CacheEntry(results));
 
@@ -321,8 +319,7 @@ public class GlobalSearchRepository {
         }
 
         try {
-            SearchResultItem results =
-                    executeParallelSearch(searchTerm, userId, 0, limit, fullSearch, true);
+            SearchResultItem results = executeParallelSearch(searchTerm, userId, 0, limit, fullSearch, true);
             putInCache(cacheKey, results);
             return results;
         } finally {
@@ -427,10 +424,20 @@ public class GlobalSearchRepository {
                     .get(timeoutMs, TimeUnit.MILLISECONDS);
 
             consecutiveFailures.set(0); // Reset circuit breaker
+            List<Users> users = new ArrayList<>(usersFuture.join());
+            List<Conversation> conversations = conversationsFuture.join();
+
+            // Users that already have a direct conversation
+            Set<String> conversationUserIds = conversations.stream()
+                    .map(Conversation::getCreatedBy)
+                    .collect(Collectors.toSet());
+
+            // Remove users who already have a conversation
+            users.removeIf(user -> conversationUserIds.contains(user.getId()));
 
             return SearchResultItem.builder()
-                    .conversation(conversationsFuture.join())
-                    .users(usersFuture.join())
+                    .conversation(conversations)
+                    .users(users)
                     .build();
         } catch (TimeoutException e) {
             logger.warn("Search timeout after {}ms for term: {}", timeoutMs, searchTerm);
@@ -452,7 +459,8 @@ public class GlobalSearchRepository {
     }
 
     /**
-     * Highly optimized parallel search on users documents based on firstName and lastName.
+     * Highly optimized parallel search on users documents based on firstName and
+     * lastName.
      * Executes the paginated data query and the total count query concurrently
      * to maximize throughput and minimize latency on millions of records.
      */
@@ -468,7 +476,8 @@ public class GlobalSearchRepository {
         Query dataQuery = buildUserSearchQuery(term);
         Query countQuery = buildUserSearchQuery(term);
 
-        // Optimize performance: use projection to avoid loading unnecessary/large fields
+        // Optimize performance: use projection to avoid loading unnecessary/large
+        // fields
         // and reduce network payload from MongoDB.
         dataQuery.fields()
                 .include("id")
@@ -480,7 +489,8 @@ public class GlobalSearchRepository {
                 .include("status")
                 .include("updatedAt");
 
-        // Apply Sorting (ensure corresponding index exists in DB, e.g. { firstName: 1 } or { updatedAt: -1 })
+        // Apply Sorting (ensure corresponding index exists in DB, e.g. { firstName: 1 }
+        // or { updatedAt: -1 })
         String sortField = (sortBy != null && !sortBy.trim().isEmpty()) ? sortBy : "updatedAt";
         Sort.Direction direction = "DESC".equalsIgnoreCase(sortDirection) ? Sort.Direction.DESC : Sort.Direction.ASC;
         dataQuery.with(Sort.by(direction, sortField));
@@ -528,7 +538,8 @@ public class GlobalSearchRepository {
 
         } catch (TimeoutException e) {
             logger.warn("Parallel user search timed out after {}ms for term: {}", timeoutMs, term);
-            // Gracefully return empty/partial results if timed out to keep the system responsive
+            // Gracefully return empty/partial results if timed out to keep the system
+            // responsive
             return SearchResultItem.builder()
                     .users(Collections.emptyList())
                     .conversation(Collections.emptyList())
@@ -558,8 +569,7 @@ public class GlobalSearchRepository {
             Pattern pattern = Pattern.compile(escapeRegex(searchTerm.trim()), Pattern.CASE_INSENSITIVE);
             query.addCriteria(new Criteria().orOperator(
                     Criteria.where("firstName").regex(pattern),
-                    Criteria.where("lastName").regex(pattern)
-            ));
+                    Criteria.where("lastName").regex(pattern)));
         }
         return query;
     }
@@ -593,8 +603,7 @@ public class GlobalSearchRepository {
                         Criteria.where("firstName").regex(pattern),
                         Criteria.where("lastName").regex(pattern),
                         Criteria.where("email").regex(pattern),
-                        Criteria.where("username").regex(pattern)
-                ));
+                        Criteria.where("username").regex(pattern)));
             }
 
             query.skip(skip).limit(limit);
@@ -625,17 +634,18 @@ public class GlobalSearchRepository {
                         "username", doc.getString("username") != null ? doc.getString("username") : ""));
 
         return Users.builder()
-                //.type(SearchResultItem.ResultType.USER)
-                //.id(doc.getString("id"))
-                //.title(fullName.trim())
-                //.subtitle(doc.getString("email"))
-                //.avatar(doc.getString("avatarUrl"))
-                //.status(doc.getString("status"))
-                //.score(score)
-                //.highlights(highlights)
-                //.lastActivity(doc.getDate("updatedAt") != null
-                //       ? doc.getDate("updatedAt").toInstant() : null)
-                //.metadata(Map.of("username", doc.getString("username") != null ? doc.getString("username") : ""))
+                // .type(SearchResultItem.ResultType.USER)
+                // .id(doc.getString("id"))
+                // .title(fullName.trim())
+                // .subtitle(doc.getString("email"))
+                // .avatar(doc.getString("avatarUrl"))
+                // .status(doc.getString("status"))
+                // .score(score)
+                // .highlights(highlights)
+                // .lastActivity(doc.getDate("updatedAt") != null
+                // ? doc.getDate("updatedAt").toInstant() : null)
+                // .metadata(Map.of("username", doc.getString("username") != null ?
+                // doc.getString("username") : ""))
                 .build();
     }
 
@@ -643,62 +653,21 @@ public class GlobalSearchRepository {
 
     private List<Conversation> searchConversations(String searchTerm, String userId, int skip, int limit) {
         try {
-            // Find all conversation IDs user is part of
-            List<String> userConversationIds = new ArrayList<>();
-            if (userId != null) {
-                List<ConversationMembers> memberships = mongoTemplate.find(
-                        new Query(Criteria.where("userId").is(userId)),
-                        ConversationMembers.class
-                );
-                userConversationIds = memberships.stream()
-                        .map(ConversationMembers::getConversationId)
-                        .toList();
-                if (userConversationIds.isEmpty()) {
-                    return new ArrayList<>();
-                }
-            }
-
             Query query = new Query();
-            query.addCriteria(Criteria.where("isDeleted").is(false));
-            if (userId != null) {
-                query.addCriteria(Criteria.where("id").in(userConversationIds));
-            }
-
-            if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-                Pattern pattern = Pattern.compile("^" + escapeRegex(searchTerm.trim()), Pattern.CASE_INSENSITIVE);
-
-                // Find users matching search term directly
-                Query userQuery = new Query(new Criteria().orOperator(
-                        Criteria.where("username").is(searchTerm.trim()),
-                        Criteria.where("email").is(searchTerm.trim()),
-                        Criteria.where("firstName").is(searchTerm.trim()),
-                        Criteria.where("lastName").is(searchTerm.trim())
-                ));
-                List<Users> matchingUsers = mongoTemplate.find(userQuery, Users.class);
-                List<String> matchingUserIds = matchingUsers.stream().map(Users::getId).toList();
-
-                // Find memberships for matching users
-                Query membershipQuery = new Query(Criteria.where("userId").in(matchingUserIds));
-                if (userId != null) {
-                    membershipQuery.addCriteria(Criteria.where("conversationId").in(userConversationIds));
-                }
-                List<ConversationMembers> matchingMemberships = mongoTemplate.find(membershipQuery, ConversationMembers.class);
-                List<String> matchingConvIds = matchingMemberships.stream()
-                        .map(ConversationMembers::getConversationId)
-                        .toList();
-
-                Criteria searchCriteria = new Criteria().orOperator(
-                        Criteria.where("title").regex(pattern),
-                        Criteria.where("description").regex(pattern),
-                        Criteria.where("id").in(matchingConvIds)
+                // 1. Fetch conversation IDs where the user is explicitly enrolled in
+                // ConversationMembers
+                query.addCriteria(
+                        new Criteria().andOperator(
+                                Criteria.where("isDeleted").is(false),
+                                Criteria.where("searchableMemberInfo")
+                                        .regex(Pattern.quote(searchTerm), "i")
+                        )
                 );
-                query.addCriteria(searchCriteria);
-            }
+            //query.skip(skip).limit(limit);
+//            query.with(Sort.by(Sort.Direction.DESC, "lastMessageAt"));
 
-            query.skip(skip).limit(limit);
-            query.with(Sort.by(Sort.Direction.DESC, "lastMessageAt"));
-
-            return mongoTemplate.find(query, Conversation.class, "conversations");
+                var result =  mongoTemplate.find(query, Conversation.class);
+                return result;
         } catch (MongoTimeoutException e) {
             throw new GlobalSearchException(ErrorType.TIMEOUT, searchTerm, e);
         } catch (MongoException e) {
@@ -706,42 +675,45 @@ public class GlobalSearchRepository {
         }
     }
 
-//    private SearchResultItem mapToConversationResult(Document doc, String searchTerm, String currentUserId) {
-//        String conversationName = doc.getString("conversation_name");
-//        String conversationType = doc.getString("conversation_type");
-//
-//        // For direct chats, show other participant's name
-//        String displayName = conversationName;
-//        String subtitle = conversationType;
-//
-//        @SuppressWarnings("unchecked")
-//        List<Document> participants = (List<Document>) doc.get("participants");
-//        if ("direct".equals(conversationType) && participants != null && currentUserId != null) {
-//            for (Document p : participants) {
-//                if (!currentUserId.equals(p.getString("user_id"))) {
-//                    displayName = p.getString("username");
-//                    subtitle = p.getString("email");
-//                    break;
-//                }
-//            }
-//        }
-//
-//        double score = calculateRelevanceScore(searchTerm, conversationName, displayName, null, null);
-//
-//        return SearchResultItem.builder()
-//                .type(SearchResultItem.ResultType.CONVERSATION)
-//                .id(doc.getObjectId("_id").toString())
-//                .title(displayName)
-//                .subtitle(subtitle)
-//                .score(score)
-//                .lastActivity(doc.getDate("updated_at") != null
-//                        ? doc.getDate("updated_at").toInstant() : null)
-//                .metadata(Map.of(
-//                        "type", conversationType != null ? conversationType : "unknown",
-//                        "participantCount", participants != null ? participants.size() : 0
-//                ))
-//                .build();
-//    }
+    // private SearchResultItem mapToConversationResult(Document doc, String
+    // searchTerm, String currentUserId) {
+    // String conversationName = doc.getString("conversation_name");
+    // String conversationType = doc.getString("conversation_type");
+    //
+    // // For direct chats, show other participant's name
+    // String displayName = conversationName;
+    // String subtitle = conversationType;
+    //
+    // @SuppressWarnings("unchecked")
+    // List<Document> participants = (List<Document>) doc.get("participants");
+    // if ("direct".equals(conversationType) && participants != null &&
+    // currentUserId != null) {
+    // for (Document p : participants) {
+    // if (!currentUserId.equals(p.getString("user_id"))) {
+    // displayName = p.getString("username");
+    // subtitle = p.getString("email");
+    // break;
+    // }
+    // }
+    // }
+    //
+    // double score = calculateRelevanceScore(searchTerm, conversationName,
+    // displayName, null, null);
+    //
+    // return SearchResultItem.builder()
+    // .type(SearchResultItem.ResultType.CONVERSATION)
+    // .id(doc.getObjectId("_id").toString())
+    // .title(displayName)
+    // .subtitle(subtitle)
+    // .score(score)
+    // .lastActivity(doc.getDate("updated_at") != null
+    // ? doc.getDate("updated_at").toInstant() : null)
+    // .metadata(Map.of(
+    // "type", conversationType != null ? conversationType : "unknown",
+    // "participantCount", participants != null ? participants.size() : 0
+    // ))
+    // .build();
+    // }
 
     // ==================== Relevance & Highlighting ====================
 
@@ -751,7 +723,8 @@ public class GlobalSearchRepository {
 
         for (int i = 0; i < fields.length; i++) {
             String field = fields[i];
-            if (field == null) continue;
+            if (field == null)
+                continue;
 
             String fieldLower = field.toLowerCase();
             double weight = 1.0 / (i + 1); // Earlier fields have higher weight

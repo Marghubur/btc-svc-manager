@@ -96,8 +96,8 @@ public class Message {
      * Message content/body - main searchable field
      */
     @TextIndexed(weight = 10)
-    @Field("body")
-    private String body;
+    @Field("content")
+    private String content;
 
     /**
      * URL for attached file (image, video, document, etc.)
