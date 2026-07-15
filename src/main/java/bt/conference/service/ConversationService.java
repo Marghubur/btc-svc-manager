@@ -5,6 +5,8 @@ import bt.conference.entity.Conversation;
 import bt.conference.entity.Conversation.Participant;
 import bt.conference.entity.ConversationMembers;
 import bt.conference.entity.Users;
+import bt.conference.model.ApplicationConstant;
+import bt.conference.model.CreateGroupRequest;
 import bt.conference.repository.ConversationMembersRepository;
 import bt.conference.repository.ConversationRepository;
 import bt.conference.repository.UsersRepository;
@@ -265,20 +267,20 @@ public class ConversationService {
     /**
      * Search conversations by term (username, email, conversation_name)
      */
-    public Conversation createSingleChannelService(String recipientId, Conversation conversation) {
+    public Conversation createSingleChannelService(String recipientId, Conversation conversation) throws Exception {
         // Validate: Check only two participants for direct chat
         if (recipientId == null || conversation.getCreatedBy() == null || conversation.getCreatedBy().isEmpty()) {
             throw new IllegalArgumentException("Cannot create conversation, required sender and receiver detail");
         }
 
-        return createConversationService(recipientId, "direct", conversation);
+        return createConversationService(recipientId, ApplicationConstant.DirectChat, null);
     }
 
     /**
      * Search conversations by term (username, email, conversation_name)
      */
-    public Conversation createGroupChannelService(String senderId, Conversation conversation) {
-        return createConversationService(senderId, "group", conversation);
+    public Conversation createGroupChannelService(String senderId, CreateGroupRequest groupRequest) throws Exception {
+        return createConversationService(senderId, ApplicationConstant.GroupChat, groupRequest);
     }
 
     private void validateGroupParticipants(List<Participant> participants) {
@@ -440,10 +442,8 @@ public class ConversationService {
         }
     }
 
-    private Conversation createConversationService(String senderId, String type, Conversation conversation) {
-        String receiverId;
-
-        Optional<String> filterSender = conversation.getParticipantIds()
+    private Conversation createConversationService(String senderId, String type, CreateGroupRequest groupRequest) throws Exception {
+        Optional<String> filterSender = groupRequest.getMemberIds()
                 .stream()
                 .filter(x -> x.equals(senderId))
                 .findFirst();
@@ -452,7 +452,7 @@ public class ConversationService {
             throw new IllegalArgumentException("Sender id not found in participantIds");
         }
 
-        Optional<String> filterReceiver = conversation.getParticipantIds()
+        Optional<String> filterReceiver = groupRequest.getMemberIds()
                 .stream()
                 .filter(x -> !x.equals(senderId))
                 .findFirst();
@@ -461,44 +461,62 @@ public class ConversationService {
             throw new IllegalArgumentException("Receiver id not found in participantIds");
         }
 
-        receiverId = filterReceiver.get();
-
         // Get user details
-        Users sender = usersRepository.findById(senderId)
-                .orElseThrow(() -> new RuntimeException("Current user not found: " + senderId));
-
-        Users receiver = usersRepository.findById(receiverId)
-                .orElseThrow(() -> new RuntimeException("Other user not found: " + receiverId));
+        var users = usersRepository.findAllById(groupRequest.getMemberIds());
+        if (users == null || users.isEmpty())
+            throw  new RuntimeException("Current user not found: " + senderId);
 
         // Validate
-        if (sender.getId().equals(receiver.getId())) {
+        var senderDetail = users.stream().filter(x -> Objects.equals(x.getId(), senderId)).toList();
+        if (senderDetail.size() > 1)
             throw new IllegalArgumentException("Cannot create conversation with yourself");
-        }
 
-        log.info("Creating direct conversation between {} and {}", sender.getId(), receiver.getId());
+        var sender = senderDetail.get(0);
+        var receivers = users.stream().filter(x -> !x.getId().equals(senderId)).toList();
+        if (receivers == null || receivers.isEmpty())
+            throw new Exception("Receiver user not found");
+
+        var firstReceiver = receivers.get(0);
 
         // Check if direct conversation already exists
-        Optional<Conversation> existing = conversationRepository.findDirectConversation(sender.getId(), receiver.getId());
-
-        if (existing.isPresent()) {
-            log.info("Direct conversation already exists: {}", existing.get().getId());
-            return existing.get();
+        if (type.equals(ApplicationConstant.DirectChat)) {
+            Optional<Conversation> existing = conversationRepository.findDirectConversation(sender.getId(), firstReceiver.getId());
+            if (existing.isPresent()) {
+                log.info("Direct conversation already exists: {}", existing.get().getId());
+                return existing.get();
+            }
+        } else {
+            
         }
-
+        
         // Build conversation
         Instant now = Instant.now();
-        String conversationIdHex = generateMongoObjectId(sender.getId(), receiver.getId());
+        String conversationIdHex = generateMongoObjectId(sender.getId(), firstReceiver.getId());
+        var title = "";
+        if (type.equalsIgnoreCase(ApplicationConstant.DirectChat)) {
+            title = receivers.get(0).getFirstName() + " " + firstReceiver.getLastName();
+        } else  {
+            if (groupRequest.getGroupName() != null && !groupRequest.getGroupName().isEmpty()) {
+                title = groupRequest.getGroupName();
+            } else {
+                title = firstReceiver.getFirstName() + " " + sender.getFirstName();
+            }
+        }
 
         Conversation conversationInstance = Conversation.builder()
                 .id(conversationIdHex)
-                .type(type.toUpperCase())
-                .title("")  // Direct chats don't have title
-                .avatar(null)
+                .type(type)
+                .title(title)  // Direct chats don't have title
+                .avatar(ApplicationConstant.EmptyString)
                 .createdBy(senderId)
+                .description(ApplicationConstant.EmptyString)
                 .createdAt(now)
+                .lastMessageId(ApplicationConstant.EmptyString)
                 .lastMessageAt(now)
                 .isDeleted(false)
-                .memberCount(2)
+                .memberCount(groupRequest.getMemberIds().size())
+                .participantIds(new ArrayList<>())
+                .searchableMemberInfo(new ArrayList<>())
                 .settings(Conversation.ConversationSettings.builder()
                         .allowReactions(true)
                         .allowPinning(true)
@@ -506,11 +524,18 @@ public class ConversationService {
                         .build())
                 .build();
 
+        for(var user : users) {
+            conversationInstance.getParticipantIds().add(user.getId());
+            conversationInstance.getSearchableMemberInfo()
+                    .add(user.getFirstName() + " " + user.getLastName() + " " + user.getEmail() + " " + user.getId());
+        }
+
         // Save to database
         Conversation saved = conversationRepository.save(conversationInstance);
 
         // Save members in conversation_members
-        ConversationMembers memberSender = ConversationMembers.builder()
+        List<ConversationMembers> conversationMembers = new ArrayList<>();
+        conversationMembers.add(ConversationMembers.builder()
                 .id(new ObjectId().toHexString())
                 .conversationId(saved.getId())
                 .userId(sender.getId())
@@ -526,27 +551,28 @@ public class ConversationService {
                 .nickname(sender.getUsername())
                 .createdAt(now)
                 .updatedAt(now)
-                .build();
-        conversationMembersRepository.save(memberSender);
+                .build());
 
-        ConversationMembers memberReceiver = ConversationMembers.builder()
-                .id(new ObjectId().toHexString())
-                .conversationId(saved.getId())
-                .userId(receiver.getId())
-                .role("MEMBER")
-                .joinedAt(now)
-                .joinedBy(senderId)
-                .status("ACTIVE")
-                .unreadCount(0)
-                .isMuted(false)
-                .isPinned(false)
-                .isArchived(false)
-                .notification("ALL")
-                .nickname(receiver.getUsername())
-                .createdAt(now)
-                .updatedAt(now)
-                .build();
-        conversationMembersRepository.save(memberReceiver);
+        for (var receiver : receivers) {
+            conversationMembers.add(ConversationMembers.builder()
+                    .id(new ObjectId().toHexString())
+                    .conversationId(saved.getId())
+                    .userId(receiver.getId())
+                    .role("MEMBER")
+                    .joinedAt(now)
+                    .joinedBy(senderId)
+                    .status("ACTIVE")
+                    .unreadCount(0)
+                    .isMuted(false)
+                    .isPinned(false)
+                    .isArchived(false)
+                    .notification("ALL")
+                    .nickname(receiver.getUsername())
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build());
+        }
+        conversationMembersRepository.saveAll(conversationMembers);
 
         log.info("Created new direct conversation: {}", saved.getId());
 

@@ -4,6 +4,8 @@ server:
     enabled: false
 
 spring:
+  profiles:
+    active: ${profile:prod}
   application:
     name: btc-server
 #

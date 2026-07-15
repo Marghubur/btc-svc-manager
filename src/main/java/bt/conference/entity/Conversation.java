@@ -1,5 +1,6 @@
 package bt.conference.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -8,18 +9,23 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
-
+import org.springframework.data.mongodb.core.mapping.MongoId;
+import org.springframework.data.mongodb.core.mapping.FieldType;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
 @Document(collection = "conversations")
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Conversation {
 
     @Id
+    @MongoId(FieldType.STRING)
     private String id;
 
     @Field("avatar")
@@ -55,12 +61,36 @@ public class Conversation {
     @Field("type")
     private String type;
 
-    // Transient fields for API payloads/compatibility
-    @Transient
+    @Field("searchableMemberInfo")
+    private List<String> searchableMemberInfo;
+
+    @Field("participant_ids")
     private List<String> participantIds;
+
+    // Transient fields for API payloads/compatibility
 
     @Transient
     private List<Participant> participants;
+
+    @JsonProperty("conversation_id")
+    public String getConversationId() {
+        return id;
+    }
+
+    @JsonProperty("last_message_at")
+    public Long getLastMessageAtMillis() {
+        return lastMessageAt != null ? lastMessageAt.toEpochMilli() : null;
+    }
+
+    @JsonProperty("member_count")
+    public int getMemberCountSnakeCase() {
+        return memberCount;
+    }
+
+    @JsonProperty("members")
+    public List<Participant> getMembers() {
+        return participants != null ? participants : Collections.emptyList();
+    }
 
     @Data
     @Builder
@@ -74,6 +104,19 @@ public class Conversation {
         private String avatar;
         private Instant joinedAt;
         private String role;
+        private String status;
+
+        @JsonProperty("user_id")
+        public String getUserIdSnake() { return userId; }
+
+        @JsonProperty("first_name")
+        public String getFirstNameSnake() { return firstName; }
+
+        @JsonProperty("last_name")
+        public String getLastNameSnake() { return lastName; }
+
+        @JsonProperty("joined_at")
+        public Long getJoinedAtMillis() { return joinedAt != null ? joinedAt.toEpochMilli() : null; }
     }
 
     @Data

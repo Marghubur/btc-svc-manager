@@ -30,7 +30,7 @@ public class MessageService {
         // Create message
         Message message = new Message();
         message.setConversationId(dto.getConversationId());
-        message.setBody(dto.getContent());
+        message.setContent(dto.getContent());
         message.setType(dto.getMessageType() != null ? dto.getMessageType() : "text");
         message.setStatus(2);
         message.setCreatedAt(Instant.now());
