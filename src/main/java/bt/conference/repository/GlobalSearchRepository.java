@@ -660,6 +660,8 @@ public class GlobalSearchRepository {
                         new Criteria().andOperator(
                                 Criteria.where("isDeleted").is(false),
                                 Criteria.where("searchableMemberInfo")
+                                        .regex(Pattern.quote(userId)),
+                                Criteria.where("searchableMemberInfo")
                                         .regex(Pattern.quote(searchTerm), "i")
                         )
                 );
