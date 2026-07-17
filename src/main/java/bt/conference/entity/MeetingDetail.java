@@ -1,5 +1,7 @@
 package bt.conference.entity;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fierhub.database.annotations.Column;
 import com.fierhub.database.annotations.Id;
 import com.fierhub.database.annotations.Table;
@@ -13,6 +15,7 @@ import java.util.Date;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 @Table(name = "meeting_detail")
 public class MeetingDetail {
     @Id
@@ -35,6 +38,7 @@ public class MeetingDetail {
     String title;
 
     @Column(name = "startDate")
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     Date startDate;
 
     @Column(name = "durationInSecond")
@@ -45,4 +49,7 @@ public class MeetingDetail {
 
     @Column(name = "hasQuickMeeting")
     boolean hasQuickMeeting;
+
+    @Column(name = "conversationId")
+    String conversationId;
 }

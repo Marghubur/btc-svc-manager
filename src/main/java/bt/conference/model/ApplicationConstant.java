@@ -8,6 +8,7 @@ public class ApplicationConstant {
 
     public static final String DirectChat = "DIRECT";
     public static final String GroupChat = "GROUP";
+    public static final String MeetingChat = "MEETING";
 
     public static final String EmptyString = "";
 }

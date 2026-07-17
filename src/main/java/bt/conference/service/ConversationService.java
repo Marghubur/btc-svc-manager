@@ -267,13 +267,15 @@ public class ConversationService {
     /**
      * Search conversations by term (username, email, conversation_name)
      */
-    public Conversation createSingleChannelService(String recipientId, Conversation conversation) throws Exception {
+    public Conversation createSingleChannelService(String senderId) throws Exception {
         // Validate: Check only two participants for direct chat
-        if (recipientId == null || conversation.getCreatedBy() == null || conversation.getCreatedBy().isEmpty()) {
+        if (senderId == null || senderId.isEmpty()) {
             throw new IllegalArgumentException("Cannot create conversation, required sender and receiver detail");
         }
 
-        return createConversationService(recipientId, ApplicationConstant.DirectChat, null);
+        return createConversationService(senderId, ApplicationConstant.DirectChat, CreateGroupRequest.builder()
+                .memberIds(List.of(userSession.getUserId()))
+                .build());
     }
 
     /**
@@ -575,6 +577,67 @@ public class ConversationService {
         conversationMembersRepository.saveAll(conversationMembers);
 
         log.info("Created new direct conversation: {}", saved.getId());
+
+        return saved;
+    }
+
+    public Conversation createMeetingConversationService(String senderId, String title) throws Exception {
+        var senderDetail = usersRepository.findById(senderId).orElseThrow(() -> new Exception("User detail not found"));
+
+        // Build conversation
+        Instant now = Instant.now();
+        String conversationIdHex = generateMongoObjectId(senderDetail.getId(), senderDetail.getId());
+
+        Conversation conversationInstance = Conversation.builder()
+                .id(conversationIdHex)
+                .type(ApplicationConstant.GroupChat)
+                .title(title)  // Direct chats don't have title
+                .avatar(ApplicationConstant.EmptyString)
+                .createdBy(senderId)
+                .description(ApplicationConstant.EmptyString)
+                .createdAt(now)
+                .lastMessageId(ApplicationConstant.EmptyString)
+                .lastMessageAt(now)
+                .isDeleted(false)
+                .memberCount(1)
+                .participantIds(new ArrayList<>())
+                .searchableMemberInfo(new ArrayList<>())
+                .settings(Conversation.ConversationSettings.builder()
+                        .allowReactions(true)
+                        .allowPinning(true)
+                        .adminOnlyPost(false)
+                        .build())
+                .build();
+
+            conversationInstance.getParticipantIds().add(senderId);
+            conversationInstance.getSearchableMemberInfo()
+                    .add(senderDetail.getFirstName() + " " + senderDetail.getLastName() + " " + senderDetail.getEmail() + " " + senderDetail.getId());
+
+        // Save to database
+        Conversation saved = conversationRepository.save(conversationInstance);
+
+        // Save members in conversation_members
+        List<ConversationMembers> conversationMembers = new ArrayList<>();
+        conversationMembers.add(ConversationMembers.builder()
+                .id(new ObjectId().toHexString())
+                .conversationId(saved.getId())
+                .userId(senderDetail.getId())
+                .role("ADMIN")
+                .joinedAt(now)
+                .joinedBy(senderId)
+                .status("ACTIVE")
+                .unreadCount(0)
+                .isMuted(false)
+                .isPinned(false)
+                .isArchived(false)
+                .notification("ALL")
+                .nickname(senderDetail.getUsername())
+                .createdAt(now)
+                .updatedAt(now)
+                .build());
+        conversationMembersRepository.saveAll(conversationMembers);
+
+        log.info("Created new meeting conversation: {}", saved.getId());
 
         return saved;
     }
