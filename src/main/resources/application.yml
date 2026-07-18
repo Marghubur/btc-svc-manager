@@ -62,3 +62,13 @@ search:
     requests: 30
     window-ms: 10000
     entries: 10000
+
+# Cloudflare R2 / S3 configuration
+file-server:
+  repo:
+    access-key-id: 0c07413954dffe1fcf65b98a390b48d0
+    secret-access-key: 07b4457ccd27a4f69ba59b4fd1f683d4464212450e5aeacab259b319d58519b0
+    endpoint: https://e6da13d502a12ac3505c03f6b6a2f683.r2.cloudflarestorage.com
+    bucket-name: fierhub
+    region: auto
+    is-s3-enabled: false
