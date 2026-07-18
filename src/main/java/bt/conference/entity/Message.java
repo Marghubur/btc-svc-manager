@@ -115,7 +115,7 @@ public class Message {
      * List of user IDs mentioned in this message
      */
     @Field("mentions")
-    private List<Long> mentions;
+    private List<String> mentions;
 
     /**
      * Reactions on this message
@@ -236,7 +236,7 @@ public class Message {
     public static class Reaction {
 
         @Field("user_id")
-        private Long userId;
+        private String userId;
 
         @Field("emoji")
         private String emoji;

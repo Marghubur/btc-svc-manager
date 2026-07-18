@@ -651,4 +651,58 @@ public class ConversationService {
             conversationRepository.save(conv);
         }
     }
+
+    public Conversation addMembersToGroupService(String conversationId, String addedByUserId, List<String> userIds) {
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new IllegalArgumentException("Conversation not found"));
+
+        if (!"GROUP".equalsIgnoreCase(conversation.getType())) {
+            throw new IllegalArgumentException("Cannot add members to a direct conversation");
+        }
+
+        var usersToAdd = usersRepository.findAllById(userIds);
+        if (usersToAdd == null || usersToAdd.isEmpty()) {
+            throw new IllegalArgumentException("Users not found");
+        }
+
+        Instant now = Instant.now();
+        List<ConversationMembers> newMembers = new ArrayList<>();
+        boolean modified = false;
+
+        for (Users u : usersToAdd) {
+            if (!conversation.getParticipantIds().contains(u.getId())) {
+                conversation.getParticipantIds().add(u.getId());
+                conversation.getSearchableMemberInfo()
+                        .add(u.getFirstName() + " " + u.getLastName() + " " + u.getEmail() + " " + u.getId());
+
+                newMembers.add(ConversationMembers.builder()
+                        .id(new ObjectId().toHexString())
+                        .conversationId(conversation.getId())
+                        .userId(u.getId())
+                        .role("MEMBER")
+                        .joinedAt(now)
+                        .joinedBy(addedByUserId)
+                        .status("ACTIVE")
+                        .unreadCount(0)
+                        .isMuted(false)
+                        .isPinned(false)
+                        .isArchived(false)
+                        .notification("ALL")
+                        .nickname(u.getFirstName() + "_" + u.getLastName())
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .build());
+                modified = true;
+            }
+        }
+
+        if (modified) {
+            conversation.setMemberCount(conversation.getParticipantIds().size());
+            conversationRepository.save(conversation);
+            conversationMembersRepository.saveAll(newMembers);
+            log.info("Added {} new members to group {}", newMembers.size(), conversationId);
+        }
+
+        return conversation;
+    }
 }

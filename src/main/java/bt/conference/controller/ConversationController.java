@@ -94,4 +94,16 @@ public class ConversationController {
         Conversation response = conversationService.createGroupService(userId, groupName, conversationId, groupUsers);
         return BaseResponse.Ok(response);
     }
+
+    /**
+     * Add members to an existing group conversation
+     * POST /api/conversations/add-members/{conversationId}?addedBy={userId}
+     */
+    @PostMapping("add-members/{conversationId}")
+    public BaseResponse addMembersToGroup(@PathVariable("conversationId") String conversationId,
+                                          @RequestParam("addedBy") String addedBy,
+                                          @RequestBody List<String> userIds) {
+        Conversation response = conversationService.addMembersToGroupService(conversationId, addedBy, userIds);
+        return BaseResponse.Ok(response);
+    }
 }

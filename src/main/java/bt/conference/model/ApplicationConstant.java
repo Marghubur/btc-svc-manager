@@ -11,4 +11,8 @@ public class ApplicationConstant {
     public static final String MeetingChat = "MEETING";
 
     public static final String EmptyString = "";
+
+    public static final int SignatureDurationInMinute = 2;
+    public static final String FierhubBucket = "fierhub";
+    public static final String ResourcePublicURL = "https://pub-93a583aff0484d0db539d541b8855e23.r2.dev/";
 }
