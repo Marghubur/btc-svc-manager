@@ -18,4 +18,26 @@ public class UtilService {
         // Subtract offset to get UTC
         return new Date(time - offset);
     }
+
+    public static long extractEmployeeId(String empCode, String employeeCodePrefix) throws Exception {
+        if (empCode == null || empCode.trim().isEmpty())
+            throw new RuntimeException("Invalid employee code");
+
+        if (employeeCodePrefix != null && !employeeCodePrefix.trim().isEmpty()) {
+            if (!empCode.toLowerCase().startsWith(employeeCodePrefix.toLowerCase())) {
+                throw new RuntimeException("Here is a mismatch in the employee code. Please contact the admin.");
+            }
+
+            empCode = empCode.substring(employeeCodePrefix.length());
+        }
+
+        int employeeId;
+        try {
+            employeeId = Integer.parseInt(empCode);
+        } catch (NumberFormatException e) {
+            throw new RuntimeException("Could not parse employee ID from '" + empCode + "'.");
+        }
+
+        return employeeId;
+    }
 }

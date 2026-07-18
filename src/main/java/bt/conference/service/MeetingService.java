@@ -19,7 +19,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.sql.Types;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class MeetingService implements IMeetingService {
@@ -31,14 +33,15 @@ public class MeetingService implements IMeetingService {
     DbManager dbManager;
     @Autowired
     ConversationService conversationService;
-
+    @Autowired
+    DbResultMapper resultMapper;
     @Autowired
     ConversationRepository conversationRepository;
 
-    private static final String CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    private static final String CHARACTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789abcdefghijkmnopqrstuvwxyz";
     private static final SecureRandom random = new SecureRandom();
 
-    public PagedResponse<Conversation> generateMeetingService(MeetingDetail meetingDetail) throws Exception {
+    public Map<String, Object> generateMeetingService(MeetingDetail meetingDetail) throws Exception {
         if (meetingDetail.getTitle() == null || meetingDetail.getTitle().isEmpty())
             throw new Exception("Invalid meeting title");
 
@@ -48,20 +51,26 @@ public class MeetingService implements IMeetingService {
         var convertedDate = UtilService.toUtc(meetingDetail.getStartDate());
         meetingDetail.setStartDate(convertedDate);
         meetingDetail.setHasQuickMeeting(false);
+
+        // Create corresponding Conversation in MongoDB so Go WebSocket / Rooms can load it
+        var conversation = conversationService.createMeetingConversationService(userSession.getUserId(), meetingDetail.getTitle());
+        meetingDetail.setConversationId(conversation.getId());
+
         addMeetingDetail(meetingDetail);
 
-        return getRecentMeetingsService();
+        return getAllMeetingByOrganizerService();
     }
 
     private void addMeetingDetail(MeetingDetail meetingDetail) throws Exception {
-        var user = dbManager.getById(userSession.getUserId(), UserDetail.class);
+        var userId = UtilService.extractEmployeeId(userSession.getUserId(), userSession.getClaimsValue().get("code"));
+        var user = dbManager.getById(userId, UserDetail.class);
         if (user == null)
             throw new Exception("User not found");
 
         var fullName = user.getFirstName() + (user.getLastName() != null && !user.getLastName().isEmpty() ? " " + user.getLastName() : "");
-        meetingDetail.setMeetingId(ManageMeetingService.generateToken(Long.parseLong(userSession.getUserId()), fullName));
+        meetingDetail.setMeetingId(ManageMeetingService.generateToken(userId, fullName));
         meetingDetail.setMeetingPassword(generatePassword(6));
-        meetingDetail.setOrganizedBy(Long.parseLong(userSession.getUserId()));
+        meetingDetail.setOrganizedBy(userId);
 
         dbManager.save(meetingDetail);
     }
@@ -75,15 +84,18 @@ public class MeetingService implements IMeetingService {
         return conversationService.searchConversationsRecentGroup(String.valueOf(userId), 1, 5);
     }
 
-    public PagedResponse<Conversation> generateQuickMeetingService(MeetingDetail meetingDetail) throws Exception {
+    public Map<String, Object> generateQuickMeetingService(MeetingDetail meetingDetail) throws Exception {
         meetingDetail.setDurationInSecond(36000);
         java.util.Date utilDate = new java.util.Date();
         var date = new java.sql.Timestamp(utilDate.getTime());
         meetingDetail.setStartDate(date);
         meetingDetail.setHasQuickMeeting(true);
 
+        var conversation = conversationService.createMeetingConversationService(userSession.getUserId(), meetingDetail.getTitle());
+        meetingDetail.setConversationId(conversation.getId());
+
         addMeetingDetail(meetingDetail);
-        return getRecentMeetingsService();
+        return getAllMeetingByOrganizerService();
     }
 
     public Conversation validateMeetingService(String access_token) throws Exception {
@@ -182,13 +194,81 @@ public class MeetingService implements IMeetingService {
         if (meetingDetail.getMeetingId() == null || meetingDetail.getMeetingId().isEmpty())
             throw new Exception("Invalid meeting id passed");
 
-        var existingMeetingDetail = dbManager.getById(meetingDetail.getMeetingDetailId(), MeetingDetail.class);
-        if (existingMeetingDetail == null)
+        var existingMeeting = dbManager.queryRaw("select * from meeting_detail where meetingId = '"
+                + meetingDetail.getMeetingId() + "' and meetingPassword = '"
+                + meetingDetail.getMeetingPassword() + "'" , MeetingDetail.class);
+        if (existingMeeting == null)
             throw new Exception("Meeting detail not found");
 
-        if (!existingMeetingDetail.getMeetingPassword().equals(meetingDetail.getMeetingPassword()))
-            throw new Exception("Invalid meeting passcode. Please contact to admin");
+        if (existingMeeting.getConversationId() == null || existingMeeting.getConversationId().isEmpty())
+            throw new Exception("Conversation detail not found");
 
-        return existingMeetingDetail;
+        var user = dbManager.getById(String.valueOf(existingMeeting.getOrganizedBy()), UserDetail.class);
+        if (user == null)
+            throw new Exception("Admin detail not found");
+
+        existingMeeting.setOrganizerName(user.getFirstName() + (user.getLastName() != null && !user.getLastName().isEmpty() ? " " + user.getLastName() : ""));
+        return existingMeeting;
+    }
+
+    public Map<String, Object> getAllMeetingByOrganizerService() throws Exception {
+        long currentUserId;
+        try {
+            currentUserId = Long.parseLong(userSession.getUserId());
+        } catch (Exception e) {
+            var code = userSession.getClaimsValue().get("code");
+            currentUserId = UtilService.extractEmployeeId(userSession.getUserId(), code);
+        }
+
+        var result = dbProcedureManager.executeProcedure("sp_dashboard_get_by_userid",
+                List.of(new DbParameters("_userid", currentUserId, Types.BIGINT))
+        );
+        Map<String, Object> data = new HashMap<>();
+        data.put("QuickMeetings", resultMapper.mapListResult(result, "#result-set-1", MeetingDetail.class));
+        data.put("ScheduledMeetings", resultMapper.mapListResult(result, "#result-set-2", MeetingDetail.class));
+        return data;
+    }
+
+    public List<MeetingDetail> getAllScheduleMeetingByOrganizerService() throws Exception {
+        long currentUserId;
+        try {
+            currentUserId = Long.parseLong(userSession.getUserId());
+        } catch (Exception e) {
+            var code = userSession.getClaimsValue().get("code");
+            currentUserId = UtilService.extractEmployeeId(userSession.getUserId(), code);
+        }
+
+        var result = dbProcedureManager.executeProcedure("sp_get_all_meeting_userid",
+                List.of(new DbParameters("_userid", currentUserId, Types.BIGINT),
+                        new DbParameters("_hasQuickMeeting", false, Types.BIT))
+        );
+        return resultMapper.mapListResult(result, "#result-set-1", MeetingDetail.class);
+    }
+
+    public MeetingDetail validateMeetingByIdService(String meetingId) throws Exception {
+        if (meetingId == null || meetingId.isEmpty() || "undefined".equals(meetingId) || "undefined_undefined".equals(meetingId))
+            throw new Exception("Invalid meeting id passed");
+
+        var targetMeetingId = "";
+        long targetDetailId = 0L;
+        int lastUnderscore = meetingId.lastIndexOf('_');
+
+        if (lastUnderscore != -1) {
+            targetMeetingId = meetingId.substring(0, lastUnderscore);
+            targetDetailId = Long.parseLong(meetingId.substring(lastUnderscore + 1));
+        }
+        var meetingDetail = dbManager.queryRaw("select * from meeting_detail where meetingDetailId = " + targetDetailId , MeetingDetail.class);
+        if (meetingDetail == null || !meetingDetail.getMeetingId().equals(targetMeetingId))
+            throw new Exception("invalid meeting link");
+
+        if (meetingDetail.getConversationId() == null || meetingDetail.getConversationId().isEmpty())
+            throw new Exception("Conversation detail not found");
+
+        var user = dbManager.getById(String.valueOf(meetingDetail.getOrganizedBy()), UserDetail.class);
+        if (user == null)
+            throw new Exception("Admin detail not found");
+
+        meetingDetail.setOrganizerName(user.getFirstName() + (user.getLastName() != null && !user.getLastName().isEmpty() ? " " + user.getLastName() : ""));
+        return meetingDetail;
     }
 }

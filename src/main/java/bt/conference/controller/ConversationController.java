@@ -67,8 +67,8 @@ public class ConversationController {
      * GET /api/conversations/search?term=john&pageNumber=1&pageSize=10
      */
     @PutMapping("create/{id}/{recipientId}")
-    public BaseResponse createChannel(@PathVariable("id") String id, @RequestBody Conversation conversation) throws Exception {
-        Conversation response = conversationService.createSingleChannelService(id, conversation);
+    public BaseResponse createChannel(@PathVariable("id") String id) throws Exception {
+        Conversation response = conversationService.createSingleChannelService(id);
         return BaseResponse.Ok(response);
     }
 

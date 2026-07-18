@@ -31,14 +31,39 @@ public class MeetingController {
     }
 
     @GetMapping("validateMeeting")
-    public BaseResponse validateMeeting(@RequestParam(name = "access_token") String access_token) throws Exception {
-        var result = _meetingService.validateMeetingService(access_token);
+    public BaseResponse validateMeeting(@RequestParam(name = "access_token", required = false) String access_token,
+                                        @RequestParam(name = "meetingId", required = false) String meetingId) throws Exception {
+        if (access_token != null && !access_token.isEmpty() && !"undefined".equals(access_token)) {
+            var result = _meetingService.validateMeetingService(access_token);
+            return BaseResponse.Ok(result);
+        } else if (meetingId != null && !meetingId.isEmpty() && !"undefined".equals(meetingId)) {
+            var result = _meetingService.validateMeetingByIdService(meetingId);
+            return BaseResponse.Ok(result);
+        }
+        throw new Exception("Please provide valid access_token or meetingId");
+    }
+
+    @GetMapping("validateMeetingById")
+    public BaseResponse validateMeetingById(@RequestParam(name = "meetingId") String meetingId) throws Exception {
+        var result = _meetingService.validateMeetingByIdService(meetingId);
+        return BaseResponse.Ok(result);
+    }
+
+    @GetMapping("getAllMeetingByOrganizer")
+    public BaseResponse getAllMeetingByOrganizer() throws Exception {
+        var result = _meetingService.getAllMeetingByOrganizerService();
         return BaseResponse.Ok(result);
     }
 
     @PostMapping("validateMeetingIdPassCode")
     public BaseResponse validateMeetingIdPassCode(@RequestBody MeetingDetail meetingDetail) throws Exception {
         var result = _meetingService.validateMeetingIdPassCodeService(meetingDetail);
+        return BaseResponse.Ok(result);
+    }
+
+    @GetMapping("getAllScheduleMeetingByOrganizer")
+    public BaseResponse getAllScheduleMeetingByOrganizer() throws Exception {
+        var result = _meetingService.getAllScheduleMeetingByOrganizerService();
         return BaseResponse.Ok(result);
     }
 }
