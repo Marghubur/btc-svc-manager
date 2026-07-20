@@ -30,4 +30,48 @@ public class StorageController {
             return BaseResponse.RaiseError("Error creating presigned URL: " + e.getMessage(), e);
         }
     }
+
+    @PostMapping("multipart/start")
+    public BaseResponse startMultipartUpload(@RequestBody bt.conference.dto.MultipartUploadStartRequest request) {
+        try {
+            bt.conference.dto.MultipartUploadStartResponse response = storageService.startMultipartUpload(request);
+            return BaseResponse.Ok(response);
+        } catch (Exception e) {
+            log.error("Error starting multipart upload", e);
+            return BaseResponse.RaiseError("Error starting multipart upload: " + e.getMessage(), e);
+        }
+    }
+
+    @PostMapping("multipart/url")
+    public BaseResponse getMultipartPreSignedUrl(@RequestBody bt.conference.dto.MultipartUploadUrlRequest request) {
+        try {
+            bt.conference.dto.MultipartUploadUrlResponse response = storageService.getMultipartPreSignedUrl(request);
+            return BaseResponse.Ok(response);
+        } catch (Exception e) {
+            log.error("Error generating multipart url", e);
+            return BaseResponse.RaiseError("Error generating multipart url: " + e.getMessage(), e);
+        }
+    }
+
+    @PostMapping("multipart/complete")
+    public BaseResponse completeMultipartUpload(@RequestBody bt.conference.dto.MultipartUploadCompleteRequest request) {
+        try {
+            bt.conference.dto.MultipartUploadCompleteResponse response = storageService.completeMultipartUpload(request);
+            return BaseResponse.Ok(response);
+        } catch (Exception e) {
+            log.error("Error completing multipart upload", e);
+            return BaseResponse.RaiseError("Error completing multipart upload: " + e.getMessage(), e);
+        }
+    }
+
+    @DeleteMapping("delete")
+    public BaseResponse deleteFile(@RequestParam String fileKey) {
+        try {
+            storageService.deleteFile(fileKey);
+            return BaseResponse.Ok("File deleted successfully");
+        } catch (Exception e) {
+            log.error("Error deleting file", e);
+            return BaseResponse.RaiseError("Error deleting file: " + e.getMessage(), e);
+        }
+    }
 }
