@@ -53,7 +53,10 @@ public class MeetingService implements IMeetingService {
         meetingDetail.setHasQuickMeeting(false);
 
         // Create corresponding Conversation in MongoDB so Go WebSocket / Rooms can load it
-        var conversation = conversationService.createMeetingConversationService(userSession.getUserId(), meetingDetail.getTitle());
+        var conversation = conversationService.createMeetingConversationService(userSession.getUserId(),
+                meetingDetail.getTitle(), meetingDetail.getParticipantsId());
+        meetingDetail.getParticipantsId().add(userSession.getUserId());
+        meetingDetail.setParticipants(resultMapper.writeValueAsString(meetingDetail.getParticipantsId()));
         meetingDetail.setConversationId(conversation.getId());
 
         addMeetingDetail(meetingDetail);
@@ -91,7 +94,9 @@ public class MeetingService implements IMeetingService {
         meetingDetail.setStartDate(date);
         meetingDetail.setHasQuickMeeting(true);
 
-        var conversation = conversationService.createMeetingConversationService(userSession.getUserId(), meetingDetail.getTitle());
+        var conversation = conversationService.createMeetingConversationService(userSession.getUserId(), meetingDetail.getTitle(), List.of());
+        meetingDetail.getParticipantsId().add(userSession.getUserId());
+        meetingDetail.setParticipants(resultMapper.writeValueAsString(meetingDetail.getParticipantsId()));
         meetingDetail.setConversationId(conversation.getId());
 
         addMeetingDetail(meetingDetail);
@@ -230,17 +235,8 @@ public class MeetingService implements IMeetingService {
     }
 
     public List<MeetingDetail> getAllScheduleMeetingByOrganizerService() throws Exception {
-        long currentUserId;
-        try {
-            currentUserId = Long.parseLong(userSession.getUserId());
-        } catch (Exception e) {
-            var code = userSession.getClaimsValue().get("code");
-            currentUserId = UtilService.extractEmployeeId(userSession.getUserId(), code);
-        }
-
-        var result = dbProcedureManager.executeProcedure("sp_get_all_meeting_userid",
-                List.of(new DbParameters("_userid", currentUserId, Types.BIGINT),
-                        new DbParameters("_hasQuickMeeting", false, Types.BIT))
+        var result = dbProcedureManager.executeProcedure("sp_get_meetings_by_participant",
+                List.of(new DbParameters("_userid", userSession.getUserId(), Types.VARCHAR))
         );
         return resultMapper.mapListResult(result, "#result-set-1", MeetingDetail.class);
     }

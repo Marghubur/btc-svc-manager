@@ -11,6 +11,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.Date;
+import java.util.List;
 
 @Data
 @AllArgsConstructor
@@ -52,4 +53,16 @@ public class MeetingDetail {
 
     @Column(name = "conversationId")
     String conversationId;
+
+    @Column(name = "isAllDay")
+    boolean isAllDay;
+
+    @Column(name = "repeatType")
+    int repeatType;
+
+    @Column(name = "participants")
+    String participants;
+
+    @Transient
+    List<String> participantsId;
 }
