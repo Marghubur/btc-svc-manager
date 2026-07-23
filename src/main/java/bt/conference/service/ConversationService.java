@@ -581,11 +581,21 @@ public class ConversationService {
         return saved;
     }
 
-    public Conversation createMeetingConversationService(String senderId, String title) throws Exception {
+    public Conversation createMeetingConversationService(String senderId, String title, List<String> participantsId) throws Exception {
         var senderDetail = usersRepository.findById(senderId).orElseThrow(() -> new Exception("User detail not found"));
 
         // Build conversation
         Instant now = Instant.now();
+        List<String> uniqueParticipantIds = participantsId == null
+                ? Collections.emptyList()
+                : participantsId.stream()
+                .filter(id -> id != null && !id.equals(senderId))
+                .distinct()
+                .toList();
+        List<Users> participants = uniqueParticipantIds.isEmpty()
+                ? Collections.emptyList()
+                : usersRepository.findAllById(uniqueParticipantIds);
+
         String conversationIdHex = generateMongoObjectId(senderDetail.getId(), senderDetail.getId());
 
         Conversation conversationInstance = Conversation.builder()
@@ -599,7 +609,6 @@ public class ConversationService {
                 .lastMessageId(ApplicationConstant.EmptyString)
                 .lastMessageAt(now)
                 .isDeleted(false)
-                .memberCount(1)
                 .participantIds(new ArrayList<>())
                 .searchableMemberInfo(new ArrayList<>())
                 .settings(Conversation.ConversationSettings.builder()
@@ -609,10 +618,15 @@ public class ConversationService {
                         .build())
                 .build();
 
-            conversationInstance.getParticipantIds().add(senderId);
+        conversationInstance.getParticipantIds().add(senderId);
+        conversationInstance.getSearchableMemberInfo()
+                .add(senderDetail.getFirstName() + " " + senderDetail.getLastName() + " " + senderDetail.getEmail() + " " + senderDetail.getId());
+        for (var user : participants) {
+            conversationInstance.getParticipantIds().add(user.getId());
             conversationInstance.getSearchableMemberInfo()
-                    .add(senderDetail.getFirstName() + " " + senderDetail.getLastName() + " " + senderDetail.getEmail() + " " + senderDetail.getId());
-
+                    .add(user.getFirstName() + " " + user.getLastName() + " " + user.getEmail() + " " + user.getId());
+        }
+        conversationInstance.setMemberCount(conversationInstance.getParticipantIds().size() + 1);
         // Save to database
         Conversation saved = conversationRepository.save(conversationInstance);
 
@@ -635,6 +649,25 @@ public class ConversationService {
                 .createdAt(now)
                 .updatedAt(now)
                 .build());
+            for (var user : participants) {
+                conversationMembers.add(ConversationMembers.builder()
+                        .id(new ObjectId().toHexString())
+                        .conversationId(saved.getId())
+                        .userId(user.getId())
+                        .role("MEMBER")
+                        .joinedAt(now)
+                        .joinedBy(senderId)
+                        .status("ACTIVE")
+                        .unreadCount(0)
+                        .isMuted(false)
+                        .isPinned(false)
+                        .isArchived(false)
+                        .notification("ALL")
+                        .nickname(user.getUsername())
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .build());
+            }
         conversationMembersRepository.saveAll(conversationMembers);
 
         log.info("Created new meeting conversation: {}", saved.getId());
