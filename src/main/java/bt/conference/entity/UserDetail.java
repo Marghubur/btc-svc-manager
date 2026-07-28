@@ -6,6 +6,7 @@ import com.fierhub.database.annotations.Column;
 import com.fierhub.database.annotations.Id;
 import com.fierhub.database.annotations.Table;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -15,6 +16,7 @@ import java.util.Date;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "users")
+@Builder
 public class UserDetail {
 
     @Id
@@ -107,7 +109,7 @@ public class UserDetail {
 
     @Column(name = "gender")
     @JsonProperty("gender")
-    private char gender;
+    private String gender;
 
     @Column(name = "maritalStatus")
     @JsonProperty("maritalStatus")
