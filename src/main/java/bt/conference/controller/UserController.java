@@ -16,4 +16,10 @@ public class UserController {
         var result = _userService.getAllUserService();
         return BaseResponse.Ok(result);
     }
+
+    @PostMapping("register")
+    public BaseResponse registerUser(@RequestBody bt.conference.dto.RegisterUserRequest request) throws Exception {
+        _userService.registerUserService(request);
+        return BaseResponse.Ok("User registered successfully");
+    }
 }
