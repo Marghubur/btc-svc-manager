@@ -102,11 +102,11 @@ public class MessageSearchRepository extends BaseSearchRepository<Message> {
         executorService.checkRateLimit(userSession.getUserId());
         totalSearches.incrementAndGet();
 
-        String cacheKey = buildMessageCacheKey(criteria);
-        MessageSearchResult cached = cacheService.get(cacheKey);
-        if (cached != null) {
-            return cached;
-        }
+//        String cacheKey = buildMessageCacheKey(criteria);
+//        MessageSearchResult cached = cacheService.get(cacheKey);
+//        if (cached != null) {
+//            return cached;
+//        }
 
         try {
             Query query = buildMessageSearchQuery(criteria);
@@ -131,7 +131,7 @@ public class MessageSearchRepository extends BaseSearchRepository<Message> {
                     .hasMore(criteria.getSkip() + messages.size() < totalCount)
                     .build();
 
-            cacheService.put(cacheKey, result);
+//            cacheService.put(cacheKey, result);
             return result;
 
         } catch (MongoTimeoutException e) {

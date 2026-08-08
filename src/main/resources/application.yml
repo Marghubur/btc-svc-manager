@@ -8,6 +8,13 @@ spring:
     active: ${profile:prod}
   application:
     name: btc-server
+
+#  data:
+#    redis:
+#      host: ${REDIS_HOST:localhost}
+#      port: ${REDIS_PORT:6379}
+#      password: "${REDIS_PASSWORD:bottomhalf_dev$12#001_env}"
+#      database: 0
 #
 #  data:
 #    mongodb:

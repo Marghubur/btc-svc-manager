@@ -1,7 +1,6 @@
 package bt.conference.controller;
 
 import bt.conference.model.GlobalSearchResponse;
-import bt.conference.model.MessageSearchResult;
 import bt.conference.service.MessageSearchService;
 import com.fierhub.model.ApiErrorResponse;
 import com.fierhub.model.BaseResponse;
@@ -10,6 +9,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/messages/")
@@ -34,7 +35,7 @@ public class MessageSearchController {
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "limit", defaultValue = "20") int limit) {
 
-        MessageSearchResult response = messageSearchService.searchMessagesService(query, page, limit);
+        var response = messageSearchService.searchMessagesService(query, page, limit);
         return BaseResponse.Ok(response);
     }
 
@@ -48,7 +49,7 @@ public class MessageSearchController {
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "limit", defaultValue = "20") int limit) {
 
-        MessageSearchResult response = messageSearchService.searchMessagesService(query, page, limit);
+        Map<String, Object> response = messageSearchService.searchMessagesService(query, page, limit);
         return BaseResponse.Ok(response);
     }
 
