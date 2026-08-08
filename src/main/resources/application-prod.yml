@@ -6,6 +6,14 @@ server:
 spring:
   application:
     name: btc-server
+
+  data:
+    redis:
+      host: ${REDIS_HOST:redis.cf.svc.cluster.local}
+      port: ${REDIS_PORT:7822}
+      password: "${REDIS_PASSWORD:confeet-redis-pass$0_1for_&*prod}"
+      username: ${REDIS_USERNAME:default}
+      database: 0
 #
 #  data:
 #    mongodb:

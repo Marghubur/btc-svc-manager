@@ -22,8 +22,6 @@ public class UserService implements IUserService {
     @Autowired
     DbManager dbManager;
     @Autowired
-    ProcedureManager procedureManager;
-    @Autowired
     UsersRepository usersRepository;
 
     public List<UserDetail> getAllUserService() throws Exception {
