@@ -267,14 +267,19 @@ public class ConversationService {
     /**
      * Search conversations by term (username, email, conversation_name)
      */
-    public Conversation createSingleChannelService(String senderId) throws Exception {
+    public Conversation createSingleChannelService(String senderId, String receiverId) throws Exception {
         // Validate: Check only two participants for direct chat
         if (senderId == null || senderId.isEmpty()) {
             throw new IllegalArgumentException("Cannot create conversation, required sender and receiver detail");
         }
 
+        // Validate: Check only two participants for direct chat
+        if (receiverId == null || receiverId.isEmpty()) {
+            throw new IllegalArgumentException("Cannot create conversation, required sender and receiver detail");
+        }
+
         return createConversationService(senderId, ApplicationConstant.DirectChat, CreateGroupRequest.builder()
-                .memberIds(List.of(userSession.getUserId()))
+                .memberIds(List.of(senderId, receiverId))
                 .build());
     }
 
@@ -445,27 +450,9 @@ public class ConversationService {
     }
 
     private Conversation createConversationService(String senderId, String type, CreateGroupRequest groupRequest) throws Exception {
-        Optional<String> filterSender = groupRequest.getMemberIds()
-                .stream()
-                .filter(x -> x.equals(senderId))
-                .findFirst();
-
-        if (filterSender.isEmpty()) {
-            throw new IllegalArgumentException("Sender id not found in participantIds");
-        }
-
-        Optional<String> filterReceiver = groupRequest.getMemberIds()
-                .stream()
-                .filter(x -> !x.equals(senderId))
-                .findFirst();
-
-        if (filterReceiver.isEmpty()) {
-            throw new IllegalArgumentException("Receiver id not found in participantIds");
-        }
-
         // Get user details
         var users = usersRepository.findAllById(groupRequest.getMemberIds());
-        if (users == null || users.isEmpty())
+        if (users.isEmpty())
             throw  new RuntimeException("Current user not found: " + senderId);
 
         // Validate
@@ -475,20 +462,19 @@ public class ConversationService {
 
         var sender = senderDetail.get(0);
         var receivers = users.stream().filter(x -> !x.getId().equals(senderId)).toList();
-        if (receivers == null || receivers.isEmpty())
+        if (receivers.isEmpty())
             throw new Exception("Receiver user not found");
 
         var firstReceiver = receivers.get(0);
 
         // Check if direct conversation already exists
         if (type.equals(ApplicationConstant.DirectChat)) {
-            Optional<Conversation> existing = conversationRepository.findDirectConversation(sender.getId(), firstReceiver.getId());
+            Optional<Conversation> existing = conversationRepository
+                    .findDirectConversation(sender.getId(), firstReceiver.getId());
             if (existing.isPresent()) {
                 log.info("Direct conversation already exists: {}", existing.get().getId());
                 return existing.get();
             }
-        } else {
-            
         }
         
         // Build conversation
