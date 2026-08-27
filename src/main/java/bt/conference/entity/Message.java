@@ -160,6 +160,12 @@ public class Message {
     @Field("is_new_conversation")
     private Boolean isNewConversation;
 
+    /**
+     * Flag indicating if this message is pinned in the conversation
+     */
+    @Field("pinned")
+    private Boolean pinned;
+
     // ==================== Status Constants ====================
 
     public static final int STATUS_RECEIVED = 1;

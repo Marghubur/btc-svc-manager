@@ -567,9 +567,9 @@ public class MessageSearchRepository extends BaseSearchRepository<Message> {
         List<Criteria> criteriaList = new ArrayList<>();
 
         // Exclude deleted messages by default
-        if (!Boolean.TRUE.equals(criteria.getIncludeDeleted())) {
-            criteriaList.add(Criteria.where("status").ne(Message.STATUS_DELETED));
-        }
+//        if (!Boolean.TRUE.equals(criteria.getIncludeDeleted())) {
+//            criteriaList.add(Criteria.where("status").ne(Message.STATUS_DELETED));
+//        }
 
         // Text/body search
         if (criteria.getSearchTerm() != null && !criteria.getSearchTerm().isEmpty()) {

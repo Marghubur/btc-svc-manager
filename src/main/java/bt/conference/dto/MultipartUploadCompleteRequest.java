@@ -1,5 +1,6 @@
 package bt.conference.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,6 +22,8 @@ public class MultipartUploadCompleteRequest {
     @NoArgsConstructor
     public static class PartETag {
         private Integer partNumber;
+        
+        @JsonProperty("eTag")
         private String eTag;
     }
 }
