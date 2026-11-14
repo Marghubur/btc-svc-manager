@@ -51,8 +51,8 @@ resources:
 
 livenessProbe:
   httpGet:
-    path: /api/main/health/healthCheck
-    port: 8553
+    path: /api/conference/check
+    port: 7801
   initialDelaySeconds: 40
   periodSeconds: 20
   timeoutSeconds: 5
@@ -60,8 +60,8 @@ livenessProbe:
 
 readinessProbe:
   httpGet:
-    path: /api/main/health/healthCheck
-    port: 8553
+    path: /api/conference/check
+    port: 7801
   initialDelaySeconds: 20
   periodSeconds: 10
   timeoutSeconds: 3
