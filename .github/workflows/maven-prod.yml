@@ -1,59 +1,175 @@
-# This workflow will build a Java project with Maven, and cache/restore any dependencies to improve the workflow execution time
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-java-with-maven
-
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
-name: Java CI with Maven
+name: CI/CD Pipeline - Confeet Service Microservice
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: bottomhalf/btc-main-service
+  HELM_RELEASE: btc-main-service
+  HELM_CHART_PATH: ./k8s
+  NAMESPACE: cf
+  DEPLOYMENT_NAME: btc-main-service
 
 jobs:
-  build:
-
+  ci:
+    name: Build & Package Java Microservice
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up JDK 17
-      uses: actions/setup-java@v3
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: maven
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Build & Push Docker Image
-      run: |
-        echo "Displaying token value: ${{ secrets.REPOSITORY_USERNAME }}"
-        # Tag with both the specific commit SHA and dev-2509
-        docker build \
-          --build-arg REPOSITORY_USERNAME=${{ secrets.REPOSITORY_USERNAME }} \
-          --build-arg REPOSITORY_TOKEN=${{ secrets.REPOSITORY_TOKEN }} \
-          -t bottomhalflimited/conf.svc.manager:${{ github.sha }} \
-          -t bottomhalflimited/conf.svc.manager:dev-2509 .
-        echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-        docker push bottomhalflimited/conf.svc.manager:${{ github.sha }}
-        docker push bottomhalflimited/conf.svc.manager:dev-2509
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
 
-    - name: SSH to Remote server and deploy
-      run: |
-        install -m 600 -D /dev/null ~/.ssh/id_rsa
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-        ssh-keyscan -H ${{ secrets.SSH_HOST }} > ~/.ssh/known_hosts
+      - name: Build with Maven
+        run: |
+          chmod +x mvnw
+          ./mvnw clean package -DskipTests
 
-    - name: Apply new changes
-      run: |
-        echo "Updating image tag in Kubernetes deployment to ensure it pulls the new image"
-        ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "sed -E -i 's|bottomhalflimited/conf.svc.manager:[^[:space:]\"\x27]+|bottomhalflimited/conf.svc.manager:${{ github.sha }}|g' /root/kube.ws/confeet/main-service/conf-manager-deploy.yml"
-        
-        echo "Applying new Kubernetes configuration"
-        ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "microk8s kubectl apply -f /root/kube.ws/confeet/main-service/conf-manager-deploy.yml"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: cleanup
-      run: |
-        echo "Cleaning up SSH credentials"
-        rm -rf ~/.ssh
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image tags
+        id: meta
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "image_tag=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "sha_tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          echo "Primary image tag: ${SHORT_SHA}"
+
+      - name: Build and push container image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  cd:
+    name: Deploy to MicroK8s via Helm
+    needs: ci
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint Helm Chart
+        run: |
+          echo "==> Linting Helm chart..."
+          helm lint "${{ env.HELM_CHART_PATH }}" \
+            --values "${{ env.HELM_CHART_PATH }}/values.yaml" \
+            --values "${{ env.HELM_CHART_PATH }}/values-production.yaml"
+
+      - name: Dry-run & Render Helm Manifests
+        env:
+          IMAGE_REPO: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          IMAGE_TAG: ${{ needs.ci.outputs.image_tag }}
+        run: |
+          echo "==> Rendering Helm template locally for validation with image ${IMAGE_REPO}:${IMAGE_TAG}..."
+          helm template "${{ env.HELM_RELEASE }}" "${{ env.HELM_CHART_PATH }}" \
+            --namespace "${{ env.NAMESPACE }}" \
+            --values "${{ env.HELM_CHART_PATH }}/values.yaml" \
+            --values "${{ env.HELM_CHART_PATH }}/values-production.yaml" \
+            --set image.repository="${IMAGE_REPO}" \
+            --set image.tag="${IMAGE_TAG}" > manifest.yaml
+
+          if [ ! -s manifest.yaml ]; then
+            echo "::error::Rendered manifest.yaml is empty! Verify chart templates."
+            exit 1
+          fi
+          echo "==> Manifest rendered successfully ($(wc -l < manifest.yaml) lines)."
+
+      - name: Setup SSH credentials
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          # Install SSH private key preserving exact format and remove CRLF
+          cat << 'EOF' > ~/.ssh/id_rsa
+          ${{ secrets.SSH_PRIVATE_KEY }}
+          EOF
+          sed -i 's/\r$//' ~/.ssh/id_rsa
+          sed -i -e '$a\' ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+          if [ ! -s ~/.ssh/id_rsa ]; then
+            echo "::error::SSH_PRIVATE_KEY secret is not set or empty!"
+            exit 1
+          fi
+
+          # Validate key syntax
+          ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub 2>/dev/null || true
+          chmod 644 ~/.ssh/id_rsa.pub 2>/dev/null || true
+
+      - name: Deploy to MicroK8s and Verify Rollout
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          set -e
+          PORT="${SSH_PORT:-22}"
+
+          if [ -z "$SSH_HOST" ] || [ -z "$SSH_USER" ]; then
+            echo "::error::SSH_HOST or SSH_USER secrets are not set!"
+            exit 1
+          fi
+
+          SSH_CMD="ssh -p $PORT -i ~/.ssh/id_rsa -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -o ServerAliveInterval=15 ${SSH_USER}@${SSH_HOST}"
+
+          echo "==> Ensuring namespace ${{ env.NAMESPACE }} exists..."
+          $SSH_CMD "export PATH=\$PATH:/snap/bin; microk8s kubectl get namespace ${{ env.NAMESPACE }} >/dev/null 2>&1 || microk8s kubectl create namespace ${{ env.NAMESPACE }}"
+
+          echo "==> Applying rendered manifests via SSH stdin (zero files copied to remote host)..."
+          $SSH_CMD "export PATH=\$PATH:/snap/bin; microk8s kubectl apply --namespace ${{ env.NAMESPACE }} -f -" < manifest.yaml
+
+          echo "==> Verifying Spring Boot Deployment rollout status..."
+          $SSH_CMD "export PATH=\$PATH:/snap/bin; microk8s kubectl rollout status deployment/${{ env.DEPLOYMENT_NAME }} -n ${{ env.NAMESPACE }} --timeout=300s"
+
+          echo "==> Deployment successful! Active Pods:"
+          $SSH_CMD "export PATH=\$PATH:/snap/bin; microk8s kubectl get pods -n ${{ env.NAMESPACE }} -l app.kubernetes.io/name=${{ env.DEPLOYMENT_NAME }} -o wide"
+
+          echo "==> Service Status:"
+          $SSH_CMD "export PATH=\$PATH:/snap/bin; microk8s kubectl get svc -n ${{ env.NAMESPACE }} -l app.kubernetes.io/name=${{ env.DEPLOYMENT_NAME }} || microk8s kubectl get svc -n ${{ env.NAMESPACE }}"
+
+      - name: Cleanup SSH credentials & temporary artifacts
+        if: always()
+        run: |
+          echo "Cleaning up SSH credentials and temporary manifests..."
+          rm -rf ~/.ssh
+          rm -f manifest.yaml

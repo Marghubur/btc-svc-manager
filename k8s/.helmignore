@@ -1,0 +1,16 @@
+# Patterns to ignore when packaging a chart.
+.DS_Store
+# Common VCS dirs
+.git/
+.gitignore
+# Common backup files
+*.bak
+*.swp
+*.tmp
+*~
+# Various IDEs
+.project
+.idea/
+*.tmproj
+.vscode/
+
