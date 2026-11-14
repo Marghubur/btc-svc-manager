@@ -4,7 +4,7 @@ global:
 
 namespace:
   create: false
-  name: mf
+  name: cf
 
 replicaCount: 1
 
