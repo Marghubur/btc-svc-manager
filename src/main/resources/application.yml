@@ -9,14 +9,20 @@ spring:
   application:
     name: btc-server
 
-fierhub:
-  token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJhbnkiLCJuYmYiOjE3OTQ2ODQ2NDMsImV4cCI6MTgyNzU5OTM0MSwiaWF0IjoxNzk0Njg0NjQzLCJpc3MiOiJpbmZvX2JvdHRvbWhhbGZfaW4iLCJhdWQiOiJmaWVyaHViLXNlcnZpY2VzIn0.1UTefx2Wb76-dsJHuUttf7xnbwZyBkiaQqfdjYQ949I_tid24_cid=13"
 
-# LiveKit configuration
-livekit:
-  url: http://livekit-service.cf.svc.cluster.local:7880
-  api-key: APIJByNUPVKqDS8
-  api-secret: mcv0eMRL9uSw3fAna0jkDjxs4ZKBvpAM5WV9k3fOvk4B
+
+# Public routes exempt from Bearer token authentication
+routes:
+  authorized:
+    - /api/auth
+    - /api/conference
+    - /api/livekit
+    - /api/main/health
+    - /api/meeting/validateMeeting
+    - /api/meeting/validateMeetingById
+    - /api/meeting/validateMeetingIdPassCode
+    - /api/users/register
+    - /api/user/register
 
 # Search settings
 search:
